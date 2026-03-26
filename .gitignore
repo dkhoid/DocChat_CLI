@@ -1,0 +1,31 @@
+.venv
+.idea
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+*.egg-info
+.env
+uv.lock
+.coverage
+.pre-commit-config.yaml
+.pytest_cache
+
+# Build & egg
+build/
+dist/
+*.egg
+*.egg-info/
+src/*.egg-info/
+
+# Data & Models
+index.pkl
+*.db
+*.sqlite
+
+# Testing
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+my_docs/

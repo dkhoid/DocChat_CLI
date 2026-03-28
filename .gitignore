@@ -1,6 +1,6 @@
-.venv
-.idea
-__pycache__
+.venv/
+.idea/
+__pycache__/
 *.pyc
 *.pyo
 *.pyd
@@ -9,7 +9,7 @@ __pycache__
 uv.lock
 .coverage
 .pre-commit-config.yaml
-.pytest_cache
+.pytest_cache/
 
 # Build & egg
 build/
@@ -18,14 +18,19 @@ dist/
 *.egg-info/
 src/*.egg-info/
 
-# Data & Models
+# Data & Models & Logs
 index.pkl
+chroma_db/
+.docchat/
 *.db
 *.sqlite
+*.log
+*.csv
 
-# Testing
+# Testing Dummies
 htmlcov/
 .tox/
 .nox/
 coverage.xml
 my_docs/
+test_data.json

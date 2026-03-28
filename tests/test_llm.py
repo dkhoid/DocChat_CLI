@@ -6,6 +6,9 @@ from docchat.chunker import Chunk
 from docchat.llm import LLMConfig, LLMSession, SessionStats, ask
 from docchat.store import SimpleVectorStore, SearchResult
 from tests.test_embedder import FakeEmbedder
+import openai
+from docchat.prompt_manager import get_prompt_manager
+
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -80,6 +83,11 @@ def test_custom_config():
     assert config.max_tokens == 2048
 
 
+def test_config_defaults_model_from_provider():
+    cfg = LLMConfig(provider="anthropic", model="")
+    assert cfg.model == "claude-3-5-haiku-latest"
+
+
 # ── SessionStats ──────────────────────────────────────────────────────────────
 
 def test_stats_report_format():
@@ -109,9 +117,10 @@ def test_session_enters_and_exits():
         assert session._client is None  # cleanup
 
 
-def test_session_missing_openai():
-    with patch.dict("sys.modules", {"openai": None}):
-        with pytest.raises(ImportError, match="openai"):
+def test_session_openai_constructor_failure():
+    # Kiểm tra rằng lỗi khởi tạo OpenAI() được propagate đúng.
+    with patch("docchat.llm.openai.OpenAI", side_effect=openai.APIConnectionError(request=MagicMock())):
+        with pytest.raises(openai.APIConnectionError):
             with LLMSession():
                 pass
 
@@ -239,3 +248,209 @@ def test_ask_empty_store():
             result = asyncio.run(ask("query?", store))
 
     assert isinstance(result, str)
+
+
+# ── SessionStats.add_usage + cost ────────────────────────────────────────────
+
+def test_add_usage_accumulates_tokens():
+    stats = SessionStats()
+    stats.add_usage("gpt-4o-mini", input_tokens=100, output_tokens=50)
+    assert stats.total_input_tokens == 100
+    assert stats.total_output_tokens == 50
+
+
+def test_add_usage_calculates_cost_nonzero():
+    stats = SessionStats()
+    stats.add_usage("gpt-4o-mini", input_tokens=1_000_000, output_tokens=0)
+    # gpt-4o-mini input: $0.15 / 1M tokens
+    assert abs(stats.cost_usd - 0.15) < 0.001
+
+
+def test_add_usage_unknown_model_zero_cost():
+    stats = SessionStats()
+    stats.add_usage("unknown-model-xyz", input_tokens=1000, output_tokens=500)
+    assert stats.cost_usd == 0.0
+
+
+def test_report_includes_cost():
+    stats = SessionStats(call_count=1, total_time=1.0)
+    stats.add_usage("gpt-4o-mini", input_tokens=100, output_tokens=50)
+    report = stats.report()
+    assert "Cost:" in report
+    assert "$" in report
+
+
+def test_report_multiple_calls_accumulate():
+    stats = SessionStats()
+    stats.add_usage("gpt-4o-mini", input_tokens=500, output_tokens=200)
+    stats.add_usage("gpt-4o-mini", input_tokens=500, output_tokens=200)
+    assert stats.total_input_tokens == 1000
+    assert stats.total_output_tokens == 400
+
+
+# ── Conversation history ──────────────────────────────────────────────────────
+
+def test_add_to_history_appends_turns():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig()
+    session.history = []
+    session.add_to_history("user", "Xin chào")
+    session.add_to_history("assistant", "Chào bạn!")
+    assert len(session.history) == 2
+    assert session.history[0]["role"] == "user"
+    assert session.history[1]["role"] == "assistant"
+
+
+def test_clear_history():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig()
+    session.history = [{"role": "user", "content": "hi"}]
+    session.clear_history()
+    assert session.history == []
+
+
+def test_history_not_included_when_disabled():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig()
+    session.history = [{"role": "user", "content": "câu cũ"}]
+    messages = session._build_messages("câu mới", [], use_history=False)
+    contents = [m["content"] for m in messages]
+    assert not any("câu cũ" in c for c in contents)
+
+
+def test_history_included_when_enabled():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig()
+    session.history = [{"role": "user", "content": "câu cũ"}]
+    messages = session._build_messages("câu mới", [], use_history=True)
+    contents = [m["content"] for m in messages]
+    assert any("câu cũ" in c for c in contents)
+
+
+# ── _build_messages ───────────────────────────────────────────────────────────
+
+def test_build_messages_has_system_first():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig()
+    session.history = []
+    messages = session._build_messages("query", [])
+    assert messages[0]["role"] == "system"
+
+
+def test_build_messages_last_is_user():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig()
+    session.history = []
+    messages = session._build_messages("câu hỏi", [])
+    assert messages[-1]["role"] == "user"
+    assert "câu hỏi" in messages[-1]["content"]
+
+
+# ── Retry logic ───────────────────────────────────────────────────────────────
+
+def test_complete_retries_on_rate_limit():
+    """_complete_sync phải retry khi gặp RateLimitError."""
+    import openai
+
+    store = make_store("nội dung")
+    call_count = 0
+
+    def failing_then_ok(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count < 3:
+            raise openai.RateLimitError(
+                message="rate limited",
+                response=MagicMock(status_code=429, headers={}),
+                body={},
+            )
+        # Lần 3: thành công
+        mock_msg = MagicMock()
+        mock_msg.choices = [MagicMock()]
+        mock_msg.choices[0].message.content = "ok"
+        mock_msg.usage.prompt_tokens = 10
+        mock_msg.usage.completion_tokens = 5
+        return mock_msg
+
+    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = failing_then_ok
+        mock_openai_class.return_value = mock_client
+
+        with LLMSession() as session:
+            result = session.complete("query", store)
+
+    assert call_count == 3
+    assert result == "ok"
+
+
+def test_complete_raises_after_max_retries():
+    """Sau 3 lần retry, phải raise exception."""
+    import openai
+
+    store = make_store("nội dung")
+
+    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = openai.RateLimitError(
+            message="always rate limited",
+            response=MagicMock(status_code=429, headers={}),
+            body={},
+        )
+        mock_openai_class.return_value = mock_client
+
+        with LLMSession() as session:
+            with pytest.raises(openai.RateLimitError):
+                session.complete("query", store)
+
+
+def test_history_trim_to_max_turns():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig(max_history_turns=2)
+    session.history = []
+
+    for i in range(6):
+        session.add_to_history("user", f"q{i}")
+        session.add_to_history("assistant", f"a{i}")
+
+    assert len(session.history) == 4
+    assert session.history[0]["content"] == "q4"
+
+
+def test_build_messages_respects_context_budget():
+    session = LLMSession.__new__(LLMSession)
+    session.config = LLMConfig(max_input_tokens=160, max_output_tokens=120)
+    session.history = []
+
+    long_text = " ".join(["python"] * 600)
+    results = [
+        SearchResult(chunk=Chunk(long_text, "big.txt", 0, 0), score=0.9)
+    ]
+
+    messages = session._build_messages("query", results)
+    pm = get_prompt_manager()
+    token_count = pm.count_messages_tokens(messages, model=session.config.model)
+    assert token_count <= session.config.max_input_tokens + 20
+
+
+def test_complete_anthropic_provider():
+    store = make_store("nội dung")
+    mock_anthropic = MagicMock()
+
+    block = MagicMock()
+    block.text = "Claude trả lời"
+    resp = MagicMock()
+    resp.content = [block]
+    resp.usage.input_tokens = 12
+    resp.usage.output_tokens = 7
+    mock_anthropic.messages.create.return_value = resp
+
+    with patch("docchat.llm.anthropic.Anthropic", return_value=mock_anthropic):
+        cfg = LLMConfig(provider="anthropic", model="claude-3-5-haiku-latest")
+        with LLMSession(cfg) as session:
+            result = session.complete("query", store)
+
+    assert result == "Claude trả lời"
+    assert session.stats.total_input_tokens == 12
+    assert session.stats.total_output_tokens == 7
+

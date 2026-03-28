@@ -42,7 +42,8 @@ def test_index_returns_0_on_success(docs_dir: Path, index_path: Path):
 def test_index_creates_index_file(docs_dir: Path, index_path: Path):
     with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         cmd_index(str(docs_dir), index_path)
-    assert index_path.exists()
+    chroma_path = index_path.parent / "chroma_db"
+    assert index_path.exists() or chroma_path.exists()
 
 
 def test_index_invalid_directory(index_path: Path):
@@ -62,7 +63,7 @@ def test_index_empty_directory(tmp_path: Path, index_path: Path):
 
 def test_info_no_index(tmp_path: Path, capsys):
     code = cmd_info(tmp_path / "missing.pkl")
-    assert code == 0
+    assert code == 1
     out = capsys.readouterr().out
     assert "Chưa có index" in out
 
@@ -118,10 +119,32 @@ def test_ask_no_stream_prints_answer(populated_index: Path, capsys):
     with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
             mock_openai_class.return_value = mock_client
-            main(["ask", "--index", str(populated_index), "--no-stream", "query?"])
+            main(["ask", "--index-path", str(populated_index), "--no-stream", "query?"])
 
     out = capsys.readouterr().out
     assert "Đây là câu trả lời" in out
+
+
+def test_main_ask_passes_provider_and_model(populated_index: Path):
+    with patch("docchat.cli.cmd_ask", return_value=0) as mock_cmd_ask:
+        code = main([
+            "ask",
+            "query?",
+            "--index-path", str(populated_index),
+            "--provider", "anthropic",
+            "--model", "claude-3-5-haiku-latest",
+            "--max-output-tokens", "256",
+            "--max-input-tokens", "4096",
+            "--temperature", "0.2",
+        ])
+
+    assert code == 0
+    cfg = mock_cmd_ask.call_args.kwargs["config"]
+    assert cfg.provider == "anthropic"
+    assert cfg.model == "claude-3-5-haiku-latest"
+    assert cfg.max_output_tokens == 256
+    assert cfg.max_input_tokens == 4096
+    assert abs(cfg.temperature - 0.2) < 1e-9
 
 
 # ── main() / argparse ─────────────────────────────────────────────────────────
@@ -174,6 +197,6 @@ def test_ask_various_queries(populated_index: Path, query: str):
     with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
             mock_openai_class.return_value = mock_client
-            code = main(["ask", "--index", str(populated_index), query])
+            code = main(["ask", "--index-path", str(populated_index), query])
 
     assert code == 0

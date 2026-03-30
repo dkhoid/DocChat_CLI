@@ -102,4 +102,3 @@ DocChat được chia cắt thành các mô-đun siêu rành mạch:
 - **Test Hệ thống (130+ bài kiểm thử):** Chạy `uv run pytest` để chắc chắn không có lỗi thoái hoá (Regression Test).
 - **Migration Data Cũ:** Chạy `uv run python scripts/migrate_to_chroma.py` để nhấc Pickle RAM cũ bỏ lên Chroma DB chuyên nghiệp nếu bạn nâng cấp từ Version bé hơn.
 
-*Project được hoàn thiện đầy đủ cho việc mang đi chinh chiến trên Web hay API Backend.*

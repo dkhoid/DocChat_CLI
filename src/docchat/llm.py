@@ -130,11 +130,13 @@ class LLMSession:
     """Quan ly 1 phien goi LLM voi retry, cost tracking va history ngan han."""
 
     def __init__(self, config: LLMConfig | None = None):
+        import threading
         self.config = config or LLMConfig()
         self.stats = SessionStats()
         self.history: list[dict[str, str]] = []
         self._client: openai.OpenAI | None = None
         self._anthropic_client: Any | None = None
+        self._shutdown_event = threading.Event()
 
     def __enter__(self) -> "LLMSession":
         if self.config.provider == "anthropic":
@@ -244,38 +246,57 @@ class LLMSession:
         k: int = 5,
         use_history: bool = False,
     ) -> AsyncIterator[str]:
-        results = store.search(query, k=k)
+        results = await asyncio.to_thread(store.search, query, k=k)
         messages = self._build_messages(query, results, use_history=use_history)
 
         t_start = time.perf_counter()
         self.stats.call_count += 1
+        
+        loop = asyncio.get_running_loop()
+        queue = asyncio.Queue()
 
+        def producer():
+            try:
+                if self.config.provider == "anthropic":
+                    for token in self._stream_sync_anthropic(messages):
+                        loop.call_soon_threadsafe(queue.put_nowait, ("token", token))
+                else:
+                    for token in self._stream_sync(messages):
+                        loop.call_soon_threadsafe(queue.put_nowait, ("token", token))
+                loop.call_soon_threadsafe(queue.put_nowait, ("done", None))
+            except Exception as e:
+                loop.call_soon_threadsafe(queue.put_nowait, ("error", e))
+
+        import threading
+        thread = threading.Thread(target=producer, daemon=True)
+        thread.start()
+
+        tokens = []
         try:
-            full_response = await asyncio.to_thread(self._stream_sync, messages)
-            self.stats.total_time += time.perf_counter() - t_start
-
-            if use_history:
-                self.add_to_history("user", query)
-                self.add_to_history("assistant", "".join(full_response))
-
-            for token in full_response:
-                yield token
-
+            while True:
+                msg_type, data = await queue.get()
+                if msg_type == "token":
+                    tokens.append(data)
+                    yield data
+                elif msg_type == "done":
+                    break
+                elif msg_type == "error":
+                    raise data
         except Exception as e:
             self.stats.errors.append(str(e))
             raise
+        finally:
+            self._shutdown_event.set()
+            self.stats.total_time += time.perf_counter() - t_start
+            if use_history:
+                self.add_to_history("user", query)
+                self.add_to_history("assistant", "".join(tokens))
 
     @_llm_retry
-    def _stream_sync(self, messages: list[dict[str, str]]) -> list[str]:
-        """Call provider streaming API (sync) va tra ve list token."""
-        if self.config.provider == "anthropic":
-            return self._stream_sync_anthropic(messages)
-
+    def _create_openai_stream(self, messages):
         if self._client is None:
             raise RuntimeError("OpenAI client chua duoc khoi tao")
-
-        tokens: list[str] = []
-        stream = self._client.chat.completions.create(
+        return self._client.chat.completions.create(
             model=self.config.model,
             max_tokens=self.config.max_output_tokens,
             temperature=self.config.temperature,
@@ -284,23 +305,36 @@ class LLMSession:
             stream_options={"include_usage": True},
         )
 
+    def _stream_sync(self, messages: list[dict[str, str]]):
+        """Call provider streaming API (sync) va tra ve generator token."""
+        stream = self._create_openai_stream(messages)
         for chunk in stream:
-            if len(chunk.choices) > 0 and chunk.choices[0].delta.content:
-                tokens.append(chunk.choices[0].delta.content)
+            if self._shutdown_event.is_set():
+                break
+            if len(chunk.choices) > 0 and getattr(chunk.choices[0].delta, "content", None):
+                yield chunk.choices[0].delta.content
             usage = getattr(chunk, "usage", None)
             if usage:
                 self.stats.add_usage(
                     self.config.model,
-                    usage.prompt_tokens,
-                    usage.completion_tokens,
+                    getattr(usage, "prompt_tokens", 0),
+                    getattr(usage, "completion_tokens", 0),
                 )
 
-        return tokens
-
-    def _stream_sync_anthropic(self, messages: list[dict[str, str]]) -> list[str]:
+    @_llm_retry
+    def _create_anthropic_stream(self, system_prompt, anthropic_messages):
         if self._anthropic_client is None:
             raise RuntimeError("Anthropic client chua duoc khoi tao")
+        return self._anthropic_client.messages.create(
+            model=self.config.model,
+            system=system_prompt,
+            messages=anthropic_messages,
+            max_tokens=self.config.max_output_tokens,
+            temperature=self.config.temperature,
+            stream=True,
+        )
 
+    def _stream_sync_anthropic(self, messages: list[dict[str, str]]):
         system_prompt = ""
         anthropic_messages: list[dict[str, str]] = []
         for msg in messages:
@@ -309,25 +343,19 @@ class LLMSession:
             else:
                 anthropic_messages.append({"role": msg["role"], "content": msg["content"]})
 
-        tokens: list[str] = []
+        stream = self._create_anthropic_stream(system_prompt, anthropic_messages)
         input_tokens = 0
         output_tokens = 0
 
-        stream = self._anthropic_client.messages.create(
-            model=self.config.model,
-            system=system_prompt,
-            messages=anthropic_messages,
-            max_tokens=self.config.max_output_tokens,
-            temperature=self.config.temperature,
-            stream=True,
-        )
         for event in stream:
+            if self._shutdown_event.is_set():
+                break
             event_type = getattr(event, "type", "")
             if event_type == "content_block_delta":
                 delta = getattr(event, "delta", None)
                 text = getattr(delta, "text", "") if delta else ""
                 if text:
-                    tokens.append(text)
+                    yield text
             elif event_type in {"message_delta", "message_stop"}:
                 usage = getattr(event, "usage", None)
                 if usage:
@@ -336,8 +364,6 @@ class LLMSession:
 
         if input_tokens or output_tokens:
             self.stats.add_usage(self.config.model, input_tokens, output_tokens)
-
-        return tokens
 
     # ── Complete (sync) ───────────────────────────────────────────────────────
 

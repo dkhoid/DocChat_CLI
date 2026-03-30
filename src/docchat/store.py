@@ -133,6 +133,8 @@ class ChromaVectorStore(BaseStore):
         self._bm25 = None
         self._bm25_chunks: list[Chunk] = []
         self._reranker_model = None
+        import threading
+        self._reranker_lock = threading.Lock()
         
     def _init_bm25(self, chunks: list[Chunk]):
         if not chunks:
@@ -248,8 +250,10 @@ class ChromaVectorStore(BaseStore):
 
         # 4. 🥇 Rerank lại Top-N bằng Cross-Encoder (Multi_Lingual)
         if self._reranker_model is None:
-            from sentence_transformers import CrossEncoder
-            self._reranker_model = CrossEncoder("cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
+            with self._reranker_lock:
+                if self._reranker_model is None:
+                    from sentence_transformers import CrossEncoder
+                    self._reranker_model = CrossEncoder("cross-encoder/mmarco-mMiniLMv2-L12-H384-v1")
             
         pairs = [[query, res.chunk.text] for res in rrf_results]
         rerank_scores = self._reranker_model.predict(pairs)

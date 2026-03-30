@@ -34,3 +34,4 @@ htmlcov/
 coverage.xml
 my_docs/
 test_data.json
+.agent/

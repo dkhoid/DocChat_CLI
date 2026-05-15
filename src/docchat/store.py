@@ -280,17 +280,17 @@ class ChromaVectorStore(BaseStore):
         sorted_ids = sorted(scores, key=scores.get, reverse=True)[:k_out]
         return [SearchResult(chunk=chunk_map[i], score=scores[i]) for i in sorted_ids]
 
-    def save(self, path: str | Path) -> None:
-        """Kích hoạt và Load Chroma DB dựa theo Path. (Chroma Persistence mode tự động save)."""
+    def save(self, data_dir: str | Path) -> None:
+        """Kích hoạt Chroma DB trong data_dir/chroma_db. (Chroma Persistence mode tự động save)."""
         import chromadb
-        db_path = str(Path(path).parent / "chroma_db")
+        db_path = str(Path(data_dir) / "chroma_db")
         self._client = chromadb.PersistentClient(path=db_path)
         self._collection = self._client.get_or_create_collection(name=self.collection_name)
 
-    def load(self, path: str | Path) -> None:
+    def load(self, data_dir: str | Path) -> None:
         """Ngàm nạp lại toàn bộ DB lên RAM memory bao gồm BM25."""
         import chromadb
-        db_path = str(Path(path).parent / "chroma_db")
+        db_path = str(Path(data_dir) / "chroma_db")
         self._client = chromadb.PersistentClient(path=db_path)
         self._collection = self._client.get_or_create_collection(name=self.collection_name)
         

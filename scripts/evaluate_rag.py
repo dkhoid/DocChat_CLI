@@ -26,7 +26,7 @@ except ImportError:
     sys.exit(1)
 
 
-def generate_evaluation_dataset(questions: list[dict], index_path: Path, embedder_provider: str):
+def generate_evaluation_dataset(questions: list[dict], data_dir: Path, embedder_provider: str):
     """
     Nhận tập dữ liệu gồm [{"question": "...", "ground_truth": "..."}],
     chạy qua RAG pipeline của DocChat để fill nốt "answer" và "contexts".
@@ -37,9 +37,9 @@ def generate_evaluation_dataset(questions: list[dict], index_path: Path, embedde
     store = ChromaVectorStore(embedder=embedder)
     
     try:
-        store.load(index_path)
+        store.load(data_dir)
     except Exception as e:
-        print(f"❌ Không thể load VectorStore tại {index_path}: {e}")
+        print(f"❌ Không thể load VectorStore tại {data_dir}: {e}")
         return None
 
     config = LLMConfig()
@@ -77,7 +77,7 @@ def generate_evaluation_dataset(questions: list[dict], index_path: Path, embedde
 
 def main():
     parser = argparse.ArgumentParser(description="Đánh giá chất lượng RAG Pipeline bằng RAGAS.")
-    parser.add_argument("--index", default=str(Path.home() / ".docchat" / "index.pkl"))
+    parser.add_argument("--index", default=str(Path.home() / ".docchat"), help="Thư mục chứa ChromaDB index")
     parser.add_argument("--embedder", default="openai")
     parser.add_argument("--dataset", default="test_data.json", help="File JSON chứa các cặp {question, ground_truth}")
     args = parser.parse_args()

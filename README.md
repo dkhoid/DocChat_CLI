@@ -91,7 +91,7 @@ uv run python scripts/evaluate_rag.py --dataset test_data.json --embedder openai
 DocChat được chia cắt thành các mô-đun siêu rành mạch:
 - `loader.py`: Đọc Data, quét sâu cây thư mục.
 - `chunker.py`: Băm dữ liệu theo mật độ Token Limit bảo vệ dung lượng gởi đi.
-- `store.py`: **ChromaVectorStore** — Interface của Chroma, Hybrid BM25, Hàm gộp điểm RRF, và Cross-Encoder Reranker Node.
+- `store.py`: **ChromaVectorStore** — Interface của Chroma, Hybrid BM25, Hàm gộp điểm RRF, và Cross-Encoder Reranker Node. Nhận data directory, tạo `chroma_db/` bên trong.
 - `embedder.py`: Cơ sở Factory Sinh mã Embedding siêu tối ưu, dễ mở rộng.
 - `llm.py`: Logic đếm token, quản lý Memory và tạo kết nối đến OpenAI/Anthropic.
 - `prompt_manager.py`: Mạch Prompt Tiếng Việt lưu gốc qua YAML dễ chỉnh sửa.

@@ -14,10 +14,15 @@ from docchat.store import ChromaVectorStore
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-DEFAULT_INDEX_PATH = Path.home() / ".docchat" / "index.pkl"
+DEFAULT_DATA_DIR = Path.home() / ".docchat"
 DEFAULT_CHUNK_SIZE = 512
 DEFAULT_CHUNK_OVERLAP = 64
 DEFAULT_TOP_K = 5
+
+
+def _index_exists(data_dir: Path) -> bool:
+    """Kiểm tra index tồn tại (ChromaDB hoặc legacy Pickle)."""
+    return (data_dir / "chroma_db").exists() or (data_dir / "index.pkl").exists()
 
 
 def get_embedder(provider: str | None = None) -> BaseEmbedder:
@@ -31,7 +36,7 @@ def get_embedder(provider: str | None = None) -> BaseEmbedder:
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
-def cmd_index(directory: str, index_path: Path = DEFAULT_INDEX_PATH, embedder_provider: str = "local") -> int:
+def cmd_index(directory: str, data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local") -> int:
     """
     Index tất cả file trong directory.
     Trả về exit code: 0 = ok, 1 = lỗi.
@@ -62,7 +67,7 @@ def cmd_index(directory: str, index_path: Path = DEFAULT_INDEX_PATH, embedder_pr
 
     embedder = get_embedder(embedder_provider)
     store = ChromaVectorStore(embedder=embedder)
-    store.save(index_path)
+    store.save(data_dir)
 
     # In tiến trình từng file
     for doc in docs:
@@ -77,14 +82,14 @@ def cmd_index(directory: str, index_path: Path = DEFAULT_INDEX_PATH, embedder_pr
 
 def cmd_ask(
     query: str,
-    index_path: Path = DEFAULT_INDEX_PATH,
+    data_dir: Path = DEFAULT_DATA_DIR,
     k: int = DEFAULT_TOP_K,
     stream: bool = True,
     config: LLMConfig | None = None,
     embedder_provider: str = "local"
 ) -> int:
     """Hỏi một câu, in câu trả lời ra stdout."""
-    if not index_path.exists() and not (index_path.parent / "chroma_db").exists():
+    if not _index_exists(data_dir):
         print(
             "Lỗi: chưa có index. Chạy 'docchat index <thư mục>' trước.",
             file=sys.stderr,
@@ -93,7 +98,7 @@ def cmd_ask(
 
     embedder = get_embedder(embedder_provider)
     store = ChromaVectorStore(embedder=embedder)
-    store.load(index_path)
+    store.load(data_dir)
 
     config = config or LLMConfig()
     
@@ -132,7 +137,7 @@ async def _stream_answer(
 
 
 def cmd_chat(
-    index_path: Path = DEFAULT_INDEX_PATH,
+    data_dir: Path = DEFAULT_DATA_DIR,
     k: int = DEFAULT_TOP_K,
     config: LLMConfig | None = None,
     embedder_provider: str = "local",
@@ -143,7 +148,7 @@ def cmd_chat(
     Gõ /clear để xóa history.
     Gõ /stats để xem thống kê session.
     """
-    if not index_path.exists() and not (index_path.parent / "chroma_db").exists():
+    if not _index_exists(data_dir):
         print(
             "Lỗi: chưa có index. Chạy 'docchat index <thư mục>' trước.",
             file=sys.stderr,
@@ -152,7 +157,7 @@ def cmd_chat(
 
     embedder = get_embedder(embedder_provider)
     store = ChromaVectorStore(embedder=embedder)
-    store.load(index_path)
+    store.load(data_dir)
 
     config = config or LLMConfig()
 
@@ -214,18 +219,18 @@ def cmd_chat(
     return 0
 
 
-def cmd_info(index_path: Path = DEFAULT_INDEX_PATH, embedder_provider: str = "local") -> int:
+def cmd_info(data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local") -> int:
     """In thông tin về index hiện tại."""
-    if not index_path.exists() and not (index_path.parent / "chroma_db").exists():
+    if not _index_exists(data_dir):
         print("Chưa có index. Chạy 'docchat index <thư mục>' để tạo.")
         return 1
 
     embedder = get_embedder(embedder_provider)
     store = ChromaVectorStore(embedder=embedder)
-    store.load(index_path)
+    store.load(data_dir)
 
     sources = {Path(c.source).name for c in store.chunks}
-    print(f"\nIndex: {index_path}")
+    print(f"\nIndex: {data_dir / 'chroma_db'}")
     print(f"Chunks: {store.size}")
     print(f"Files:  {len(sources)}")
     for name in sorted(sources):
@@ -252,13 +257,13 @@ def main(argv: list[str] | None = None) -> int:
     # docchat index <dir>
     p_index = sub.add_parser("index", help="Index tài liệu trong thư mục.")
     p_index.add_argument("directory", help="Thư mục chứa file .txt / .md")
-    p_index.add_argument("--index-path", default=str(DEFAULT_INDEX_PATH))
+    p_index.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục lưu ChromaDB index")
     p_index.add_argument("--embedder", choices=["local", "openai"], default="local")
 
     # docchat ask <query>
     p_ask = sub.add_parser("ask", help="Hỏi một câu dựa trên tài liệu đã index.")
     p_ask.add_argument("query", help="Câu hỏi")
-    p_ask.add_argument("--index-path", default=str(DEFAULT_INDEX_PATH))
+    p_ask.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index")
     p_ask.add_argument("--embedder", choices=["local", "openai"], default="local")
     p_ask.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     p_ask.add_argument("--provider", choices=["openai", "anthropic"], default="openai")
@@ -271,7 +276,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # docchat chat (multi-turn REPL)
     p_chat = sub.add_parser("chat", help="Chat đa lượt với tài liệu (có memory).")
-    p_chat.add_argument("--index-path", default=str(DEFAULT_INDEX_PATH))
+    p_chat.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index")
     p_chat.add_argument("--embedder", choices=["local", "openai"], default="local")
     p_chat.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     p_chat.add_argument("--provider", choices=["openai", "anthropic"], default="openai")
@@ -283,7 +288,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # docchat info
     p_info = sub.add_parser("info", help="Xem thông tin index hiện tại.")
-    p_info.add_argument("--index-path", default=str(DEFAULT_INDEX_PATH))
+    p_info.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index")
     p_info.add_argument("--embedder", choices=["local", "openai"], default="local")
 
     args = parser.parse_args(argv)
@@ -291,7 +296,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "index":
         return cmd_index(
             args.directory, 
-            Path(args.index_path),
+            Path(args.data_dir),
             embedder_provider=args.embedder
         )
 
@@ -306,7 +311,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return cmd_ask(
             args.query,
-            index_path=Path(args.index_path),
+            data_dir=Path(args.data_dir),
             k=args.top_k,
             stream=not args.no_stream,
             config=config,
@@ -323,14 +328,14 @@ def main(argv: list[str] | None = None) -> int:
             min_relevance_score=args.min_relevance_score,
         )
         return cmd_chat(
-            index_path=Path(args.index_path),
+            data_dir=Path(args.data_dir),
             k=args.top_k,
             config=config,
             embedder_provider=args.embedder,
         )
 
     if args.command == "info":
-        return cmd_info(Path(args.index_path), embedder_provider=args.embedder)
+        return cmd_info(Path(args.data_dir), embedder_provider=args.embedder)
 
     return 0
 

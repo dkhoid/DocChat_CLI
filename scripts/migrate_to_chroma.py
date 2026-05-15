@@ -42,7 +42,7 @@ def main():
         embedder = EmbedderFactory.create(args.embedder)
         store = ChromaVectorStore(embedder=embedder)
         # Khởi tạo db_path cùng cấp với index.pkl
-        store.save(old_path)
+        store.save(old_path.parent)
         
         # Có thể chunks quá lớn, cần chia batch
         batch_size = 100

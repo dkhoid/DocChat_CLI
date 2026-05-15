@@ -19,7 +19,7 @@ try:
 except ImportError:  # pragma: no cover
     anthropic = None
 
-from docchat.store import SimpleVectorStore
+from docchat.store import BaseStore
 
 logger = logging.getLogger(__name__)
 
@@ -242,7 +242,7 @@ class LLMSession:
     async def stream(
         self,
         query: str,
-        store: SimpleVectorStore,
+        store: BaseStore,
         k: int = 5,
         use_history: bool = False,
     ) -> AsyncIterator[str]:
@@ -370,7 +370,7 @@ class LLMSession:
     def complete(
         self,
         query: str,
-        store: SimpleVectorStore,
+        store: BaseStore,
         k: int = 5,
         use_history: bool = False,
     ) -> str:
@@ -455,7 +455,7 @@ class LLMSession:
 
 async def ask(
     query: str,
-    store: SimpleVectorStore,
+    store: BaseStore,
     config: LLMConfig | None = None,
     k: int = 5,
 ) -> str:

@@ -454,3 +454,70 @@ def test_complete_anthropic_provider():
     assert session.stats.total_input_tokens == 12
     assert session.stats.total_output_tokens == 7
 
+
+# ── Async streaming tests ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_stream_returns_tokens():
+    """stream() phải yield từng token."""
+    store = make_store("tài liệu test")
+
+    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+        mock_openai_class.return_value = MagicMock()
+        with LLMSession() as session:
+            with patch.object(session, "_stream_sync", return_value=["xin ", "chào"]):
+                tokens = []
+                async for token in session.stream("hello", store):
+                    tokens.append(token)
+
+    assert tokens == ["xin ", "chào"]
+
+
+@pytest.mark.asyncio
+async def test_stream_empty_store():
+    """stream() với store rỗng vẫn hoạt động."""
+    empty_store = SimpleVectorStore(embedder=FakeEmbedder(dim=4))
+
+    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+        mock_openai_class.return_value = MagicMock()
+        with LLMSession() as session:
+            with patch.object(session, "_stream_sync", return_value=["không ", "có"]):
+                tokens = []
+                async for token in session.stream("query", empty_store):
+                    tokens.append(token)
+
+    assert "".join(tokens) == "không có"
+
+
+@pytest.mark.asyncio
+async def test_stream_updates_stats():
+    """stream() phải tăng call_count."""
+    store = make_store("nội dung")
+
+    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+        mock_openai_class.return_value = MagicMock()
+        with LLMSession() as session:
+            with patch.object(session, "_stream_sync", return_value=["ok"]):
+                async for _ in session.stream("query", store):
+                    pass
+            assert session.stats.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_stream_with_history():
+    """stream() với use_history=True phải lưu vào history."""
+    store = make_store("data")
+
+    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+        mock_openai_class.return_value = MagicMock()
+        with LLMSession() as session:
+            with patch.object(session, "_stream_sync", return_value=["trả ", "lời"]):
+                async for _ in session.stream("câu hỏi", store, use_history=True):
+                    pass
+            assert len(session.history) == 2
+            assert session.history[0]["role"] == "user"
+            assert session.history[0]["content"] == "câu hỏi"
+            assert session.history[1]["role"] == "assistant"
+            assert session.history[1]["content"] == "trả lời"
+
+

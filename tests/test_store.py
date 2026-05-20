@@ -3,6 +3,7 @@ from pathlib import Path
 
 from docchat.chunker import Chunk
 from docchat.store import SimpleVectorStore, SearchResult, cosine_similarity
+# pyrefly: ignore [missing-import]
 from tests.test_embedder import FakeEmbedder
 
 
@@ -120,9 +121,20 @@ def test_search_k_larger_than_store(populated_store: SimpleVectorStore):
 # ── Save / Load ───────────────────────────────────────────────────────────────
 
 def test_save_creates_file(populated_store: SimpleVectorStore, tmp_path: Path):
-    save_path = tmp_path / "index.pkl"
+    save_path = tmp_path / "index.json"
     populated_store.save(save_path)
     assert save_path.exists()
+
+
+def test_save_is_valid_json(populated_store: SimpleVectorStore, tmp_path: Path):
+    import json
+    save_path = tmp_path / "index.json"
+    populated_store.save(save_path)
+    with open(save_path, encoding="utf-8") as f:
+        data = json.load(f)
+    assert "chunks" in data
+    assert "vectors" in data
+    assert len(data["chunks"]) == populated_store.size
 
 
 def test_load_restores_chunks(
@@ -130,7 +142,7 @@ def test_load_restores_chunks(
     populated_store: SimpleVectorStore,
     tmp_path: Path,
 ):
-    save_path = tmp_path / "index.pkl"
+    save_path = tmp_path / "index.json"
     populated_store.save(save_path)
 
     new_store = SimpleVectorStore(embedder=embedder)
@@ -142,10 +154,23 @@ def test_load_restores_chunks(
 
 def test_load_nonexistent_file(store: SimpleVectorStore, tmp_path: Path):
     with pytest.raises(FileNotFoundError):
-        store.load(tmp_path / "nonexistent.pkl")
+        store.load(tmp_path / "nonexistent.json")
 
 
 def test_save_creates_parent_dirs(populated_store: SimpleVectorStore, tmp_path: Path):
-    nested_path = tmp_path / "deep" / "nested" / "index.pkl"
+    nested_path = tmp_path / "deep" / "nested" / "index.json"
     populated_store.save(nested_path)
     assert nested_path.exists()
+
+
+def test_load_preserves_chunk_ids(
+    embedder: FakeEmbedder,
+    populated_store: SimpleVectorStore,
+    tmp_path: Path,
+):
+    save_path = tmp_path / "index.json"
+    populated_store.save(save_path)
+
+    new_store = SimpleVectorStore(embedder=embedder)
+    new_store.load(save_path)
+    assert [c.id for c in new_store.chunks] == [c.id for c in populated_store.chunks]

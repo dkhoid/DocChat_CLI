@@ -35,3 +35,8 @@ coverage.xml
 my_docs/
 test_data.json
 .agent/
+
+.venv_windows/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/

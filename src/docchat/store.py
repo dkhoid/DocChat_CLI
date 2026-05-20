@@ -1,9 +1,11 @@
+import json
 import math
 import uuid
-import pickle
 from dataclasses import dataclass, field
 from pathlib import Path
 from abc import ABC, abstractmethod
+
+import numpy as np
 
 from docchat.chunker import Chunk
 from docchat.embedder import BaseEmbedder
@@ -12,13 +14,14 @@ from docchat.embedder import BaseEmbedder
 # ── Math helpers ──────────────────────────────────────────────────────────────
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Tính cosine similarity giữa hai vector."""
-    dot = sum(x * y for x, y in zip(a, b))
-    norm_a = math.sqrt(sum(x * x for x in a))
-    norm_b = math.sqrt(sum(x * x for x in b))
+    """Tính cosine similarity giữa hai vector (numpy vectorized)."""
+    a_np = np.asarray(a, dtype=np.float64)
+    b_np = np.asarray(b, dtype=np.float64)
+    norm_a = np.linalg.norm(a_np)
+    norm_b = np.linalg.norm(b_np)
     if norm_a == 0 or norm_b == 0:
         return 0.0
-    return dot / (norm_a * norm_b)
+    return float(np.dot(a_np, b_np) / (norm_a * norm_b))
 
 
 # ── Result type ───────────────────────────────────────────────────────────────
@@ -92,18 +95,32 @@ class SimpleVectorStore(BaseStore):
     def save(self, path: str | Path) -> None:
         save_path = Path(path)
         save_path.parent.mkdir(parents=True, exist_ok=True)
-        data = {"chunks": self.chunks, "vectors": self.vectors}
-        with open(save_path, "wb") as f:
-            pickle.dump(data, f)
+        data = {
+            "chunks": [
+                {
+                    "text": c.text,
+                    "source": c.source,
+                    "index": c.index,
+                    "chunk_num": c.chunk_num,
+                    "id": c.id,
+                }
+                for c in self.chunks
+            ],
+            "vectors": self.vectors,
+        }
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
         print(f"Index saved: {len(self.chunks)} chunks → {save_path}")
 
     def load(self, path: str | Path) -> None:
         load_path = Path(path)
         if not load_path.exists():
             raise FileNotFoundError(f"Index not found: {load_path}")
-        with open(load_path, "rb") as f:
-            data = pickle.load(f)
-        self.chunks = data["chunks"]
+        with open(load_path, encoding="utf-8") as f:
+            data = json.load(f)
+        self.chunks = [
+            Chunk(**c) for c in data["chunks"]
+        ]
         self.vectors = data["vectors"]
 
     def clear(self) -> None:
@@ -172,33 +189,52 @@ class ChromaVectorStore(BaseStore):
     @property
     def chunks(self) -> list[Chunk]:
         return self._get_all_chunks()
+    def _remove_source(self, source: str) -> None:
+        """Xóa tất cả chunks thuộc source khỏi ChromaDB và BM25 (dedup upsert)."""
+        if self._collection is None:
+            return
+        try:
+            existing = self._collection.get(
+                where={"source": str(source)},
+                include=[]
+            )
+            if existing and existing.get("ids"):
+                self._collection.delete(ids=existing["ids"])
+                removed_ids = set(existing["ids"])
+                self._bm25_chunks = [c for c in self._bm25_chunks if c.id not in removed_ids]
+        except Exception:
+            pass
+
     def add(self, chunks: list[Chunk]) -> None:
         if not chunks:
             return
         if self._collection is None:
             raise RuntimeError("Cần gọi load() hoặc save() để khởi tạo thiết lập Chroma Client trước khi lưu data.")
 
+        # Dedup: xóa chunks cũ cùng source trước khi thêm mới (upsert by source)
+        sources_to_add = {str(c.source) for c in chunks}
+        for source in sources_to_add:
+            self._remove_source(source)
+
         texts = [c.text for c in chunks]
         embeddings = self.embedder.embed_batch(texts)
-        
+
         ids = []
         metadatas = []
-        # Check uniqueness manually or rely on ChromaDB overwriting?
-        # We will just generate default IDs.
         for c in chunks:
             ids.append(c.id)
             metadatas.append({"source": str(c.source), "index": int(c.index), "chunk_num": int(c.chunk_num)})
-            
+
         self._collection.add(
             embeddings=embeddings,
             documents=texts,
             metadatas=metadatas,
             ids=ids
         )
-        
-        # Cập nhật state memory của hệ thống BM25 Sparse Search.
-        all_chunks = self._get_all_chunks()
-        self._init_bm25(all_chunks)
+
+        # BM25 incremental: extend in-memory list thay vì round-trip ChromaDB
+        self._bm25_chunks.extend(chunks)
+        self._init_bm25(self._bm25_chunks)
 
     def search(self, query: str, k: int = 5) -> list[SearchResult]:
         if self._collection is None:

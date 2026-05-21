@@ -164,6 +164,13 @@ class ErrorResponse(BaseModel):
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
+@app.get("/", include_in_schema=False)
+async def root():
+    from fastapi.responses import RedirectResponse
+
+    return RedirectResponse(url="/docs")
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     store = _get_store()

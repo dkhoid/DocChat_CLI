@@ -7,7 +7,9 @@ def main() -> None:
     import uvicorn
 
     host = os.environ.get("DOCCHAT_HOST", "0.0.0.0")
-    port = int(os.environ.get("DOCCHAT_PORT", "8000"))
+    # Railway (và các Cloud PaaS khác) tự động cấp phát cổng qua biến PORT
+    port_str = os.environ.get("PORT") or os.environ.get("DOCCHAT_PORT", "8000")
+    port = int(port_str)
     reload = os.environ.get("DOCCHAT_RELOAD", "false").lower() == "true"
 
     uvicorn.run(
@@ -15,6 +17,8 @@ def main() -> None:
         host=host,
         port=port,
         reload=reload,
+        proxy_headers=True,
+        forwarded_allow_ips="*",
     )
 
 

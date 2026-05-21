@@ -14,13 +14,11 @@ ENV UV_COMPILE_BYTECODE=1
 COPY pyproject.toml uv.lock ./
 
 # Install dependencies (without installing the project source)
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-install-project --no-dev
+RUN uv sync --frozen --no-install-project --no-dev
 
 # Copy the source code and install the project
 COPY src /app/src
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev
 
 # Stage 2: Runtime
 FROM python:3.13-slim AS runtime
@@ -43,8 +41,7 @@ COPY --from=builder /app/.venv /app/.venv
 # Copy the source code (required for the application execution)
 COPY src /app/src
 
-# Expose port 8000 for the FastAPI server
-EXPOSE 8000
+# (Removed EXPOSE 8000 to let Railway dynamically inject the PORT variable without conflicts)
 
 # Run the API server using the installed entrypoint script
 CMD ["docchat-api"]

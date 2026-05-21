@@ -1,15 +1,14 @@
 import asyncio
+from unittest.mock import MagicMock, patch
+
+import openai
 import pytest
-from unittest.mock import MagicMock, patch, PropertyMock
 
 from docchat.chunker import Chunk
 from docchat.llm import LLMConfig, LLMSession, SessionStats, ask
-from docchat.store import SimpleVectorStore, SearchResult
-from tests.test_embedder import FakeEmbedder
-import openai
 from docchat.prompt_manager import get_prompt_manager
-
-
+from docchat.store import SearchResult, SimpleVectorStore
+from tests.test_embedder import FakeEmbedder
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -128,7 +127,7 @@ def test_session_openai_constructor_failure():
 def test_session_stats_reset_each_session():
     with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
-        with LLMSession() as s1:
+        with LLMSession():
             pass
         with LLMSession() as s2:
             assert s2.stats.call_count == 0

@@ -1,8 +1,8 @@
-import pytest
 from pathlib import Path
 
-from docchat.loader import Document, load_file, load_directory
+import pytest
 
+from docchat.loader import Document, load_directory, load_file
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 

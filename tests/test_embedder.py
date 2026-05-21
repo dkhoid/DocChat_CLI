@@ -1,14 +1,13 @@
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from docchat.embedder import (
     BaseEmbedder,
-    OpenAIEmbedder,
-    LocalEmbedder,
     EmbedderFactory,
+    OpenAIEmbedder,
     retry,
 )
-
 
 # ── Fake embedder dùng trong test (không cần API) ─────────────────────────────
 

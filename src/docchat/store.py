@@ -1,15 +1,13 @@
 import json
 import math
-import uuid
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
-from abc import ABC, abstractmethod
 
 import numpy as np
 
 from docchat.chunker import Chunk
 from docchat.embedder import BaseEmbedder
-
 
 # ── Math helpers ──────────────────────────────────────────────────────────────
 

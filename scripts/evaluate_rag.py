@@ -1,26 +1,26 @@
-import sys
-import os
 import argparse
-from pathlib import Path
 import json
+import os
+import sys
+from pathlib import Path
 
 from datasets import Dataset
 
 # Đặt đường dẫn tuyệt đối cho import
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from docchat.embedder import EmbedderFactory
-from docchat.store import ChromaVectorStore
-from docchat.llm import LLMConfig, LLMSession
-from docchat.prompt_manager import get_prompt_manager
-
 from dotenv import load_dotenv
+
+from docchat.embedder import EmbedderFactory
+from docchat.llm import LLMConfig, LLMSession
+from docchat.store import ChromaVectorStore
+
 load_dotenv()
 
 # --- Cấu hình Ragas ---
 try:
     from ragas import evaluate
-    from ragas.metrics import faithfulness, answer_relevancy, context_recall
+    from ragas.metrics import answer_relevancy, context_recall, faithfulness
 except ImportError:
     print("Vui lòng cài đặt ragas và datasets: uv add --dev ragas datasets")
     sys.exit(1)
@@ -89,7 +89,7 @@ def main():
         print('[{"question": "What is Python?", "ground_truth": "Python is a programming language."}]')
         return
 
-    with open(ds_path, "r", encoding="utf-8") as f:
+    with open(ds_path, encoding="utf-8") as f:
         questions = json.load(f)
 
     if not isinstance(questions, list) or len(questions) == 0:
@@ -106,8 +106,8 @@ def main():
 
     try:
         from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-        from ragas.llms import LangchainLLMWrapper
         from ragas.embeddings import LangchainEmbeddingsWrapper
+        from ragas.llms import LangchainLLMWrapper
         
         # Khởi tạo mô hình Giám khảo (Judge)
         evaluator_llm = LangchainLLMWrapper(ChatOpenAI(model="gpt-4o-mini", temperature=0))

@@ -1,11 +1,12 @@
-import pytest
 from pathlib import Path
 
+import pytest
+
 from docchat.chunker import Chunk
-from docchat.store import SimpleVectorStore, SearchResult, cosine_similarity
+from docchat.store import SearchResult, SimpleVectorStore, cosine_similarity
+
 # pyrefly: ignore [missing-import]
 from tests.test_embedder import FakeEmbedder
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

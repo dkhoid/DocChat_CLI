@@ -6,11 +6,10 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 from docchat.chunker import chunk_documents
-from docchat.embedder import EmbedderFactory, BaseEmbedder
+from docchat.embedder import BaseEmbedder, EmbedderFactory
 from docchat.llm import LLMConfig, LLMSession
 from docchat.loader import load_directory
 from docchat.store import ChromaVectorStore
-
 
 # ── Config ────────────────────────────────────────────────────────────────────
 

@@ -1,8 +1,7 @@
 import pytest
 
-from docchat.loader import Document
 from docchat.chunker import Chunk, chunk_document, chunk_documents
-
+from docchat.loader import Document
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 

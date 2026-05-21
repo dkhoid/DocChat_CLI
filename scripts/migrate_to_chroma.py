@@ -1,15 +1,16 @@
-import sys
+import argparse
 import pickle
+import sys
 import time
 from pathlib import Path
-import argparse
 
 # Giả lập môi trường module để chạy script ngoài src
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from docchat.chunker import Chunk
 from docchat.embedder import EmbedderFactory
 from docchat.store import ChromaVectorStore
-from docchat.chunker import Chunk
+
 
 def main():
     parser = argparse.ArgumentParser(description="Migrate từ index.pkl (SimpleVectorStore) sang ChromaDB.")

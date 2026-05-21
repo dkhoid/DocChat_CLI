@@ -1,12 +1,11 @@
 """
 Tests cho PromptManager — load YAML, render, count tokens, trim context.
 """
-import pytest
-from pathlib import Path
 from unittest.mock import patch
 
-from docchat.prompt_manager import PromptManager, get_prompt_manager
+import pytest
 
+from docchat.prompt_manager import PromptManager, get_prompt_manager
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 

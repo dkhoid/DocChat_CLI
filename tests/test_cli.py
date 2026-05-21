@@ -1,12 +1,10 @@
-import pytest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from docchat.cli import cmd_index, cmd_ask, cmd_info, main
-from docchat.chunker import Chunk
-from docchat.store import SimpleVectorStore
+import pytest
+
+from docchat.cli import cmd_ask, cmd_index, cmd_info, main
 from tests.test_embedder import FakeEmbedder
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 

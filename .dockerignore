@@ -1,0 +1,41 @@
+# Version control
+.git
+.gitignore
+
+# Python
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# CI / Test
+.pytest_cache
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov/
+
+# Agent config (not needed in container)
+.agent
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Data (mounted via volume)
+*.pkl
+
+# Docs
+*.md
+!prompts/**/*.md
+LICENSE

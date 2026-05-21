@@ -115,6 +115,9 @@ class IndexResponse(BaseModel):
 
 class AskRequest(BaseModel):
     query: str = Field(..., min_length=1, description="Câu hỏi")
+    api_key: str | None = Field(
+        default=None, description="Tự thêm API Key của bạn (OpenAI/Anthropic)"
+    )
     top_k: int = Field(default=DEFAULT_TOP_K, ge=1, le=50)
     provider: Literal["openai", "anthropic"] = "openai"
     model: str = ""
@@ -255,6 +258,7 @@ async def ask_question(req: AskRequest):
         )
 
     config = LLMConfig(
+        api_key=req.api_key,
         provider=req.provider,
         model=req.model,
         max_output_tokens=req.max_output_tokens,
@@ -286,6 +290,7 @@ async def _stream_ask(store: ChromaVectorStore, req: AskRequest):
     import json
 
     config = LLMConfig(
+        api_key=req.api_key,
         provider=req.provider,
         model=req.model,
         max_output_tokens=req.max_output_tokens,
@@ -318,13 +323,14 @@ async def chat_create(
     provider: Literal["openai", "anthropic"] = "openai",
     model: str = "",
     temperature: float = 0.7,
+    api_key: str | None = None,
 ):
     store = _get_store()
     if store.size == 0:
         raise HTTPException(status_code=400, detail="Chưa có index. Gọi /index trước.")
 
     session_id = str(uuid.uuid4())
-    config = LLMConfig(provider=provider, model=model, temperature=temperature)
+    config = LLMConfig(api_key=api_key, provider=provider, model=model, temperature=temperature)
     session = LLMSession(config)
     session.__enter__()
     _chat_sessions[session_id] = session

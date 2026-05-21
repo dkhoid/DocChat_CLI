@@ -51,6 +51,7 @@ def _default_model(provider: str) -> str:
 
 @dataclass
 class LLMConfig:
+    api_key: str | None = None
     model: str = "gpt-4o-mini"
     provider: Literal["openai", "anthropic"] = "openai"
     max_tokens: int = 1024
@@ -146,9 +147,17 @@ class LLMSession:
         if self.config.provider == "anthropic":
             if anthropic is None:
                 raise ImportError("Can cai anthropic: uv add anthropic")
-            self._anthropic_client = anthropic.Anthropic()
+            self._anthropic_client = (
+                anthropic.Anthropic(api_key=self.config.api_key)
+                if self.config.api_key
+                else anthropic.Anthropic()
+            )
         else:
-            self._client = openai.OpenAI()
+            self._client = (
+                openai.OpenAI(api_key=self.config.api_key)
+                if self.config.api_key
+                else openai.OpenAI()
+            )
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:

@@ -48,6 +48,7 @@ def _default_model(provider: str) -> str:
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class LLMConfig:
     model: str = "gpt-4o-mini"
@@ -72,6 +73,7 @@ class LLMConfig:
 
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
+
 
 @dataclass
 class SessionStats:
@@ -126,11 +128,13 @@ _llm_retry = retry(
 
 # ── LLMSession context manager ────────────────────────────────────────────────
 
+
 class LLMSession:
     """Quan ly 1 phien goi LLM voi retry, cost tracking va history ngan han."""
 
     def __init__(self, config: LLMConfig | None = None):
         import threading
+
         self.config = config or LLMConfig()
         self.stats = SessionStats()
         self.history: list[dict[str, str]] = []
@@ -197,13 +201,9 @@ class LLMSession:
             messages.append({"role": "user", "content": query})
             return messages
 
-        filtered_chunks = [
-            r for r in context_chunks
-            if r.score >= self.config.min_relevance_score
-        ]
+        filtered_chunks = [r for r in context_chunks if r.score >= self.config.min_relevance_score]
         context_text = "\n\n---\n\n".join(
-            f"[{r.chunk.source}]\n{r.chunk.text}"
-            for r in filtered_chunks
+            f"[{r.chunk.source}]\n{r.chunk.text}" for r in filtered_chunks
         )
 
         rendered_empty = pm.render("qa_rag", query=query, context="")
@@ -216,10 +216,14 @@ class LLMSession:
         input_budget = max(0, self.config.max_input_tokens - self.config.max_output_tokens)
         base_tokens = pm.count_messages_tokens(base_messages, model=self.config.model)
         context_budget = max(0, input_budget - base_tokens)
-        context_text = pm.trim_to_budget(context_text, budget=context_budget, model=self.config.model)
+        context_text = pm.trim_to_budget(
+            context_text, budget=context_budget, model=self.config.model
+        )
 
         rendered = pm.render("qa_rag", query=query, context=context_text)
-        messages = [{"role": "system", "content": rendered.get("system", self.config.system_prompt)}]
+        messages = [
+            {"role": "system", "content": rendered.get("system", self.config.system_prompt)}
+        ]
         messages.extend(history)
         messages.append({"role": "user", "content": rendered.get("user", query)})
         return messages
@@ -228,14 +232,8 @@ class LLMSession:
     def _build_prompt(self, query: str, context_chunks: list) -> str:
         if not context_chunks:
             return query
-        context = "\n\n---\n\n".join(
-            f"[{r.chunk.source}]\n{r.chunk.text}"
-            for r in context_chunks
-        )
-        return (
-            f"Tai lieu tham khao:\n\n{context}\n\n"
-            f"---\n\nCau hoi: {query}"
-        )
+        context = "\n\n---\n\n".join(f"[{r.chunk.source}]\n{r.chunk.text}" for r in context_chunks)
+        return f"Tai lieu tham khao:\n\n{context}\n\n---\n\nCau hoi: {query}"
 
     # ── Stream ────────────────────────────────────────────────────────────────
 
@@ -251,7 +249,7 @@ class LLMSession:
 
         t_start = time.perf_counter()
         self.stats.call_count += 1
-        
+
         loop = asyncio.get_running_loop()
         queue = asyncio.Queue()
 
@@ -268,6 +266,7 @@ class LLMSession:
                 loop.call_soon_threadsafe(queue.put_nowait, ("error", e))
 
         import threading
+
         thread = threading.Thread(target=producer, daemon=True)
         thread.start()
 
@@ -452,6 +451,7 @@ class LLMSession:
 
 
 # ── Convenience function ──────────────────────────────────────────────────────
+
 
 async def ask(
     query: str,

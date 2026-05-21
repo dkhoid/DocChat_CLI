@@ -101,6 +101,7 @@ class PromptManager:
         """
         try:
             import tiktoken
+
             try:
                 enc = tiktoken.encoding_for_model(model)
             except KeyError:

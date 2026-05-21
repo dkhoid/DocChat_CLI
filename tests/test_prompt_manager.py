@@ -1,6 +1,7 @@
 """
 Tests cho PromptManager — load YAML, render, count tokens, trim context.
 """
+
 from unittest.mock import patch
 
 import pytest
@@ -8,6 +9,7 @@ import pytest
 from docchat.prompt_manager import PromptManager, get_prompt_manager
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
+
 
 @pytest.fixture
 def tmp_prompt_dir(tmp_path):
@@ -37,6 +39,7 @@ def pm(tmp_prompt_dir):
 
 # ── load() ─────────────────────────────────────────────────────────────────────
 
+
 def test_load_returns_dict(pm):
     data = pm.load("simple")
     assert isinstance(data, dict)
@@ -63,6 +66,7 @@ def test_load_without_yaml_extension(pm):
 
 # ── render() ──────────────────────────────────────────────────────────────────
 
+
 def test_render_injects_variables(pm):
     rendered = pm.render("simple", query="Python là gì?")
     assert "Python là gì?" in rendered["user"]
@@ -74,6 +78,7 @@ def test_render_multi_var(pm):
     assert "Alice" in rendered["system"]
     assert "Hello?" in rendered["user"]
     assert "Some doc" in rendered["user"]
+
 
 def test_render_static_no_vars(pm):
     """Template không có biến vẫn render được."""
@@ -88,6 +93,7 @@ def test_render_missing_variable_raises(pm):
 
 # ── count_tokens() ────────────────────────────────────────────────────────────
 
+
 def test_count_tokens_returns_int(pm):
     n = pm.count_tokens("Hello world", model="gpt-4o-mini")
     assert isinstance(n, int)
@@ -96,7 +102,9 @@ def test_count_tokens_returns_int(pm):
 
 def test_count_tokens_longer_text_more_tokens(pm):
     short = pm.count_tokens("Hi", model="gpt-4o-mini")
-    long = pm.count_tokens("Hello world, this is a longer sentence with more words.", model="gpt-4o-mini")
+    long = pm.count_tokens(
+        "Hello world, this is a longer sentence with more words.", model="gpt-4o-mini"
+    )
     assert long > short
 
 
@@ -118,6 +126,7 @@ def test_count_messages_tokens(pm):
 
 
 # ── trim_to_budget() ──────────────────────────────────────────────────────────
+
 
 def test_trim_short_text_unchanged(pm):
     short = "Đây là đoạn văn rất ngắn."
@@ -151,6 +160,7 @@ def test_trim_preserves_paragraph_boundaries(pm):
 
 # ── list_templates() ──────────────────────────────────────────────────────────
 
+
 def test_list_templates(pm, tmp_prompt_dir):
     templates = pm.list_templates()
     assert "simple" in templates
@@ -169,6 +179,7 @@ def test_list_templates_nonexistent_dir():
 
 
 # ── get_prompt_manager() singleton ────────────────────────────────────────────
+
 
 def test_get_prompt_manager_returns_instance():
     pm1 = get_prompt_manager(prompt_dir="/tmp")

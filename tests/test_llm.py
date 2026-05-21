@@ -12,13 +12,13 @@ from tests.test_embedder import FakeEmbedder
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
+
 def make_store(*texts: str) -> SimpleVectorStore:
     """Tạo store đã populated với FakeEmbedder."""
     embedder = FakeEmbedder(dim=4)
     store = SimpleVectorStore(embedder=embedder)
     chunks = [
-        Chunk(text=t, source=f"doc{i}.txt", index=0, chunk_num=i)
-        for i, t in enumerate(texts)
+        Chunk(text=t, source=f"doc{i}.txt", index=0, chunk_num=i) for i, t in enumerate(texts)
     ]
     store.add(chunks)
     return store
@@ -44,30 +44,31 @@ def make_mock_client(response_text: str = "Đây là câu trả lời"):
         chunk.choices[0].delta.content = chunk_text
         chunk.usage = None
         mock_stream.append(chunk)
-        
+
     last_chunk = MagicMock()
     last_chunk.choices = []
     last_chunk.usage.prompt_tokens = 100
     last_chunk.usage.completion_tokens = 50
     mock_stream.append(last_chunk)
-    
+
     # trả về 1 iterator thay vì stream ctx
     mock_client.chat.completions.create.return_value = iter(mock_stream)
 
     # Note: complete uses object not stream, stream uses iterator.
     # To properly mock both depending on kwargs, we can use a side_effect
     def create_mock(*args, **kwargs):
-        if kwargs.get('stream'):
+        if kwargs.get("stream"):
             return iter(mock_stream)
         else:
             return mock_msg
-            
+
     mock_client.chat.completions.create.side_effect = create_mock
 
     return mock_client
 
 
 # ── LLMConfig ─────────────────────────────────────────────────────────────────
+
 
 def test_default_config():
     config = LLMConfig()
@@ -89,6 +90,7 @@ def test_config_defaults_model_from_provider():
 
 # ── SessionStats ──────────────────────────────────────────────────────────────
 
+
 def test_stats_report_format():
     stats = SessionStats(call_count=3, total_time=6.0)
     report = stats.report()
@@ -108,6 +110,7 @@ def test_stats_report_with_errors():
 
 # ── LLMSession context manager ────────────────────────────────────────────────
 
+
 def test_session_enters_and_exits():
     with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
@@ -118,7 +121,9 @@ def test_session_enters_and_exits():
 
 def test_session_openai_constructor_failure():
     # Kiểm tra rằng lỗi khởi tạo OpenAI() được propagate đúng.
-    with patch("docchat.llm.openai.OpenAI", side_effect=openai.APIConnectionError(request=MagicMock())):
+    with patch(
+        "docchat.llm.openai.OpenAI", side_effect=openai.APIConnectionError(request=MagicMock())
+    ):
         with pytest.raises(openai.APIConnectionError):
             with LLMSession():
                 pass
@@ -134,6 +139,7 @@ def test_session_stats_reset_each_session():
 
 
 # ── _build_prompt ─────────────────────────────────────────────────────────────
+
 
 def test_build_prompt_no_context():
     session = LLMSession.__new__(LLMSession)
@@ -169,6 +175,7 @@ def test_build_prompt_multiple_chunks():
 
 
 # ── complete() ────────────────────────────────────────────────────────────────
+
 
 def test_complete_returns_string():
     store = make_store("Python là ngôn ngữ lập trình.")
@@ -223,6 +230,7 @@ def test_complete_multiple_calls():
 
 # ── ask() convenience function ────────────────────────────────────────────────
 
+
 def test_ask_returns_string():
     store = make_store("ti li‡u test")
     mock_client = make_mock_client("kt qu")
@@ -250,6 +258,7 @@ def test_ask_empty_store():
 
 
 # ── SessionStats.add_usage + cost ────────────────────────────────────────────
+
 
 def test_add_usage_accumulates_tokens():
     stats = SessionStats()
@@ -288,6 +297,7 @@ def test_report_multiple_calls_accumulate():
 
 
 # ── Conversation history ──────────────────────────────────────────────────────
+
 
 def test_add_to_history_appends_turns():
     session = LLMSession.__new__(LLMSession)
@@ -328,6 +338,7 @@ def test_history_included_when_enabled():
 
 # ── _build_messages ───────────────────────────────────────────────────────────
 
+
 def test_build_messages_has_system_first():
     session = LLMSession.__new__(LLMSession)
     session.config = LLMConfig()
@@ -346,6 +357,7 @@ def test_build_messages_last_is_user():
 
 
 # ── Retry logic ───────────────────────────────────────────────────────────────
+
 
 def test_complete_retries_on_rate_limit():
     """_complete_sync phải retry khi gặp RateLimitError."""
@@ -422,9 +434,7 @@ def test_build_messages_respects_context_budget():
     session.history = []
 
     long_text = " ".join(["python"] * 600)
-    results = [
-        SearchResult(chunk=Chunk(long_text, "big.txt", 0, 0), score=0.9)
-    ]
+    results = [SearchResult(chunk=Chunk(long_text, "big.txt", 0, 0), score=0.9)]
 
     messages = session._build_messages("query", results)
     pm = get_prompt_manager()
@@ -455,6 +465,7 @@ def test_complete_anthropic_provider():
 
 
 # ── Async streaming tests ─────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_stream_returns_tokens():
@@ -518,5 +529,3 @@ async def test_stream_with_history():
             assert session.history[0]["content"] == "câu hỏi"
             assert session.history[1]["role"] == "assistant"
             assert session.history[1]["content"] == "trả lời"
-
-

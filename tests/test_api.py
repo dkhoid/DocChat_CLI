@@ -12,10 +12,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from docchat.chunker import Chunk
-from docchat.store import ChromaVectorStore, SearchResult
+from docchat.store import ChromaVectorStore
+
 # pyrefly: ignore [missing-import]
 from tests.test_embedder import FakeEmbedder
-
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -27,8 +27,15 @@ def fake_store(tmp_path: Path) -> ChromaVectorStore:
     store = ChromaVectorStore(embedder=embedder)
     store.save(tmp_path)
     chunks = [
-        Chunk(text="Python là ngôn ngữ lập trình phổ biến.", source="/docs/a.txt", index=0, chunk_num=0),
-        Chunk(text="RAG kết hợp retrieval và generation.", source="/docs/b.md", index=0, chunk_num=0),
+        Chunk(
+            text="Python là ngôn ngữ lập trình phổ biến.",
+            source="/docs/a.txt",
+            index=0,
+            chunk_num=0,
+        ),
+        Chunk(
+            text="RAG kết hợp retrieval và generation.", source="/docs/b.md", index=0, chunk_num=0
+        ),
     ]
     store.add(chunks)
     return store
@@ -220,13 +227,16 @@ def test_ask_with_custom_params(client: TestClient):
     mock_client.chat.completions.create.return_value = mock_msg
 
     with patch("docchat.llm.openai.OpenAI", return_value=mock_client):
-        resp = client.post("/ask", json={
-            "query": "test?",
-            "top_k": 3,
-            "temperature": 0.3,
-            "max_output_tokens": 256,
-            "stream": False,
-        })
+        resp = client.post(
+            "/ask",
+            json={
+                "query": "test?",
+                "top_k": 3,
+                "temperature": 0.3,
+                "max_output_tokens": 256,
+                "stream": False,
+            },
+        )
     assert resp.status_code == 200
 
 
@@ -251,7 +261,7 @@ def test_ask_stream_returns_sse(client: TestClient):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/event-stream")
 
-    lines = [l for l in resp.text.strip().split("\n") if l.startswith("data:")]
+    lines = [l for l in resp.text.strip().split("\n") if l.startswith("data:")]  # noqa: E741
     assert len(lines) >= 1
 
     first_event = json.loads(lines[0].removeprefix("data: "))

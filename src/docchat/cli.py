@@ -35,7 +35,10 @@ def get_embedder(provider: str | None = None) -> BaseEmbedder:
 
 # ── Commands ──────────────────────────────────────────────────────────────────
 
-def cmd_index(directory: str, data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local") -> int:
+
+def cmd_index(
+    directory: str, data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local"
+) -> int:
     """
     Index tất cả file trong directory.
     Trả về exit code: 0 = ok, 1 = lỗi.
@@ -70,8 +73,9 @@ def cmd_index(directory: str, data_dir: Path = DEFAULT_DATA_DIR, embedder_provid
 
     # In tiến trình từng file
     for doc in docs:
-        doc_chunks = [c for c in chunks if c.source == str(dir_path / doc.source)
-                      or c.source == doc.source]
+        doc_chunks = [
+            c for c in chunks if c.source == str(dir_path / doc.source) or c.source == doc.source
+        ]
         print(f"  ✓ {Path(doc.source).name:40s} → {len(doc_chunks)} chunks")
 
     store.add(chunks)
@@ -85,7 +89,7 @@ def cmd_ask(
     k: int = DEFAULT_TOP_K,
     stream: bool = True,
     config: LLMConfig | None = None,
-    embedder_provider: str = "local"
+    embedder_provider: str = "local",
 ) -> int:
     """Hỏi một câu, in câu trả lời ra stdout."""
     if not _index_exists(data_dir):
@@ -100,7 +104,7 @@ def cmd_ask(
     store.load(data_dir)
 
     config = config or LLMConfig()
-    
+
     # In ra log debug
     print("\n[Debug] Retrieved Chunks:")
     results = store.search(query, k=k)
@@ -110,7 +114,7 @@ def cmd_ask(
     for i, r in enumerate(filtered, 1):
         preview = r.chunk.text.replace("\n", " ")[:70]
         print(f"  {i}. [{Path(r.chunk.source).name}] (score: {r.score:.3f}) - {preview}...")
-    
+
     print()  # dòng trống trước câu trả lời
 
     with LLMSession(config) as session:
@@ -206,9 +210,7 @@ def cmd_chat(
 
             print("\nDocChat: ", end="", flush=True)
             try:
-                asyncio.run(
-                    _stream_answer(session, query, store, k, use_history=True)
-                )
+                asyncio.run(_stream_answer(session, query, store, k, use_history=True))
             except Exception as e:
                 print(f"\n[Lỗi] {e}", file=sys.stderr)
 
@@ -240,6 +242,7 @@ def cmd_info(data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local"
 
 # ── CLI parser ────────────────────────────────────────────────────────────────
 
+
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Trả về exit code."""
     import argparse
@@ -256,13 +259,17 @@ def main(argv: list[str] | None = None) -> int:
     # docchat index <dir>
     p_index = sub.add_parser("index", help="Index tài liệu trong thư mục.")
     p_index.add_argument("directory", help="Thư mục chứa file .txt / .md")
-    p_index.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục lưu ChromaDB index")
+    p_index.add_argument(
+        "--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục lưu ChromaDB index"
+    )
     p_index.add_argument("--embedder", choices=["local", "openai"], default="local")
 
     # docchat ask <query>
     p_ask = sub.add_parser("ask", help="Hỏi một câu dựa trên tài liệu đã index.")
     p_ask.add_argument("query", help="Câu hỏi")
-    p_ask.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index")
+    p_ask.add_argument(
+        "--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index"
+    )
     p_ask.add_argument("--embedder", choices=["local", "openai"], default="local")
     p_ask.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     p_ask.add_argument("--provider", choices=["openai", "anthropic"], default="openai")
@@ -275,7 +282,9 @@ def main(argv: list[str] | None = None) -> int:
 
     # docchat chat (multi-turn REPL)
     p_chat = sub.add_parser("chat", help="Chat đa lượt với tài liệu (có memory).")
-    p_chat.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index")
+    p_chat.add_argument(
+        "--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index"
+    )
     p_chat.add_argument("--embedder", choices=["local", "openai"], default="local")
     p_chat.add_argument("--top-k", type=int, default=DEFAULT_TOP_K)
     p_chat.add_argument("--provider", choices=["openai", "anthropic"], default="openai")
@@ -287,17 +296,15 @@ def main(argv: list[str] | None = None) -> int:
 
     # docchat info
     p_info = sub.add_parser("info", help="Xem thông tin index hiện tại.")
-    p_info.add_argument("--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index")
+    p_info.add_argument(
+        "--data-dir", default=str(DEFAULT_DATA_DIR), help="Thư mục chứa ChromaDB index"
+    )
     p_info.add_argument("--embedder", choices=["local", "openai"], default="local")
 
     args = parser.parse_args(argv)
 
     if args.command == "index":
-        return cmd_index(
-            args.directory, 
-            Path(args.data_dir),
-            embedder_provider=args.embedder
-        )
+        return cmd_index(args.directory, Path(args.data_dir), embedder_provider=args.embedder)
 
     if args.command == "ask":
         config = LLMConfig(

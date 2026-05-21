@@ -8,6 +8,7 @@ from tests.test_embedder import FakeEmbedder
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def docs_dir(tmp_path: Path) -> Path:
     """Thư mục có sẵn 2 file tài liệu."""
@@ -30,6 +31,7 @@ def populated_index(docs_dir: Path, data_dir: Path) -> Path:
 
 
 # ── cmd_index ─────────────────────────────────────────────────────────────────
+
 
 def test_index_returns_0_on_success(docs_dir: Path, data_dir: Path):
     with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
@@ -59,6 +61,7 @@ def test_index_empty_directory(tmp_path: Path, data_dir: Path):
 
 # ── cmd_info ──────────────────────────────────────────────────────────────────
 
+
 def test_info_no_index(tmp_path: Path, capsys):
     code = cmd_info(tmp_path / "nonexistent_subdir")
     assert code == 1
@@ -82,6 +85,7 @@ def test_info_shows_file_names(populated_index: Path, capsys):
 
 
 # ── cmd_ask ───────────────────────────────────────────────────────────────────
+
 
 def test_ask_no_index_returns_1(tmp_path: Path):
     code = cmd_ask("câu hỏi?", data_dir=tmp_path / "nonexistent_subdir")
@@ -125,16 +129,24 @@ def test_ask_no_stream_prints_answer(populated_index: Path, capsys):
 
 def test_main_ask_passes_provider_and_model(populated_index: Path):
     with patch("docchat.cli.cmd_ask", return_value=0) as mock_cmd_ask:
-        code = main([
-            "ask",
-            "query?",
-            "--data-dir", str(populated_index),
-            "--provider", "anthropic",
-            "--model", "claude-3-5-haiku-latest",
-            "--max-output-tokens", "256",
-            "--max-input-tokens", "4096",
-            "--temperature", "0.2",
-        ])
+        code = main(
+            [
+                "ask",
+                "query?",
+                "--data-dir",
+                str(populated_index),
+                "--provider",
+                "anthropic",
+                "--model",
+                "claude-3-5-haiku-latest",
+                "--max-output-tokens",
+                "256",
+                "--max-input-tokens",
+                "4096",
+                "--temperature",
+                "0.2",
+            ]
+        )
 
     assert code == 0
     cfg = mock_cmd_ask.call_args.kwargs["config"]
@@ -146,6 +158,7 @@ def test_main_ask_passes_provider_and_model(populated_index: Path):
 
 
 # ── main() / argparse ─────────────────────────────────────────────────────────
+
 
 def test_main_index_command(docs_dir: Path, data_dir: Path):
     with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
@@ -171,25 +184,29 @@ def test_main_unknown_command_exits():
 
 # ── parametrize: nhiều câu hỏi ───────────────────────────────────────────────
 
-@pytest.mark.parametrize("query", [
-    "Python là gì?",
-    "RAG hoạt động như thế nào?",
-    "Làm sao để cài đặt?",
-])
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "Python là gì?",
+        "RAG hoạt động như thế nào?",
+        "Làm sao để cài đặt?",
+    ],
+)
 def test_ask_various_queries(populated_index: Path, query: str):
     mock_client = MagicMock()
-    
+
     # Mock stream response
     mock_chunk = MagicMock()
     mock_chunk.choices = [MagicMock()]
     mock_chunk.choices[0].delta.content = "trả lời"
     mock_chunk.usage = None
-    
+
     mock_last_chunk = MagicMock()
     mock_last_chunk.choices = []
     mock_last_chunk.usage.prompt_tokens = 10
     mock_last_chunk.usage.completion_tokens = 5
-    
+
     mock_client.chat.completions.create.return_value = iter([mock_chunk, mock_last_chunk])
 
     with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):

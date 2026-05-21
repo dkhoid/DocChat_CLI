@@ -9,8 +9,8 @@ from docchat.loader import Document
 class Chunk:
     text: str
     source: str
-    index: int        # vị trí ký tự bắt đầu trong document gốc
-    chunk_num: int    # thứ tự chunk trong document (0-based)
+    index: int  # vị trí ký tự bắt đầu trong document gốc
+    chunk_num: int  # thứ tự chunk trong document (0-based)
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
 
 
@@ -20,7 +20,7 @@ def chunk_document(
     overlap: int = 50,
 ) -> Iterator[Chunk]:
     """
-    Tách một Document thành các Chunk có overlap sử dụng RecursiveCharacterTextSplitter 
+    Tách một Document thành các Chunk có overlap sử dụng RecursiveCharacterTextSplitter
     từ langchain_text_splitters (chia theo token).
     """
     if chunk_size <= 0:

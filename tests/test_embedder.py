@@ -11,6 +11,7 @@ from docchat.embedder import (
 
 # ── Fake embedder dùng trong test (không cần API) ─────────────────────────────
 
+
 class FakeEmbedder(BaseEmbedder):
     """Embedder giả — trả về vector cố định, không gọi API."""
 
@@ -34,12 +35,14 @@ class FakeEmbedder(BaseEmbedder):
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def fake_embedder() -> FakeEmbedder:
     return FakeEmbedder(dim=4)
 
 
 # ── BaseEmbedder (ABC) ────────────────────────────────────────────────────────
+
 
 def test_cannot_instantiate_base_embedder():
     """ABC không cho khởi tạo trực tiếp."""
@@ -84,6 +87,7 @@ def test_different_texts_different_vectors(fake_embedder: FakeEmbedder):
 
 # ── OpenAIEmbedder (mock API) ─────────────────────────────────────────────────
 
+
 @pytest.fixture
 def mock_openai_embedder():
     """Mock toàn bộ openai module — không cần API key."""
@@ -94,6 +98,7 @@ def mock_openai_embedder():
 
     with patch.dict("sys.modules", {"openai": MagicMock()}):
         import sys
+
         mock_client = MagicMock()
         mock_client.embeddings.create.return_value = fake_response
         sys.modules["openai"].OpenAI.return_value = mock_client
@@ -122,6 +127,7 @@ def test_openai_embed_batch(mock_openai_embedder):
 
 
 # ── @retry decorator ──────────────────────────────────────────────────────────
+
 
 def test_retry_succeeds_first_try():
     call_count = 0
@@ -164,6 +170,7 @@ def test_retry_raises_after_max_attempts():
 
 # ── EmbedderFactory ───────────────────────────────────────────────────────────
 
+
 def test_factory_unknown_provider():
     with pytest.raises(ValueError, match="Unknown provider"):
         EmbedderFactory.create("nonexistent")
@@ -172,10 +179,15 @@ def test_factory_unknown_provider():
 def test_factory_register_and_create():
     @EmbedderFactory.register("fake")
     class _Fake(BaseEmbedder):
-        def embed(self, text): return [0.0]
-        def embed_batch(self, texts): return [[0.0]] * len(texts)
+        def embed(self, text):
+            return [0.0]
+
+        def embed_batch(self, texts):
+            return [[0.0]] * len(texts)
+
         @property
-        def dimension(self): return 1
+        def dimension(self):
+            return 1
 
     embedder = EmbedderFactory.create("fake")
     assert isinstance(embedder, BaseEmbedder)

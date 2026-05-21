@@ -6,7 +6,6 @@ __pycache__/
 *.pyd
 *.egg-info
 .env
-uv.lock
 .coverage
 .pre-commit-config.yaml
 .pytest_cache/

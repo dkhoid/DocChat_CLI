@@ -63,6 +63,7 @@ def _get_store() -> ChromaVectorStore:
 
 # ── Lifespan ──────────────────────────────────────────────────────────────────
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     load_dotenv()
@@ -93,6 +94,7 @@ app.add_middleware(
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
+
 
 class HealthResponse(BaseModel):
     status: str = "ok"
@@ -160,6 +162,7 @@ class ErrorResponse(BaseModel):
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
@@ -255,7 +258,9 @@ async def ask_question(req: AskRequest):
         answer = await asyncio.to_thread(session.complete, req.query, store, req.top_k)
 
     results = store.search(req.query, k=req.top_k)
-    sources = list({Path(r.chunk.source).name for r in results if r.score >= config.min_relevance_score})
+    sources = list(
+        {Path(r.chunk.source).name for r in results if r.score >= config.min_relevance_score}
+    )
 
     return AskResponse(
         answer=answer,
@@ -300,6 +305,7 @@ async def _stream_ask(store: ChromaVectorStore, req: AskRequest):
 
 # ── Chat sessions ────────────────────────────────────────────────────────────
 
+
 @app.post("/chat/create", response_model=ChatCreateResponse)
 async def chat_create(
     provider: Literal["openai", "anthropic"] = "openai",
@@ -327,7 +333,11 @@ async def chat_message(session_id: str, req: ChatRequest):
 
     store = _get_store()
     answer = await asyncio.to_thread(
-        session.complete, req.query, store, req.top_k, use_history=True,
+        session.complete,
+        req.query,
+        store,
+        req.top_k,
+        use_history=True,
     )
 
     results = store.search(req.query, k=req.top_k)
@@ -361,7 +371,8 @@ async def chat_stats(session_id: str):
             "cost_usd": round(session.stats.cost_usd, 8),
             "avg_latency": round(
                 session.stats.total_time / session.stats.call_count
-                if session.stats.call_count else 0,
+                if session.stats.call_count
+                else 0,
                 3,
             ),
         },
@@ -389,6 +400,7 @@ async def chat_clear_history(session_id: str):
 
 
 # ── Info ──────────────────────────────────────────────────────────────────────
+
 
 @app.get("/info", response_model=InfoResponse)
 async def info():

@@ -10,6 +10,7 @@ from tests.test_embedder import FakeEmbedder
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def embedder() -> FakeEmbedder:
     return FakeEmbedder(dim=8)
@@ -25,7 +26,9 @@ def chunks() -> list[Chunk]:
     return [
         Chunk(text="Python là ngôn ngữ lập trình phổ biến", source="a.txt", index=0, chunk_num=0),
         Chunk(text="Machine learning dùng nhiều toán học", source="b.txt", index=0, chunk_num=0),
-        Chunk(text="FastAPI là framework Python cho REST API", source="a.txt", index=100, chunk_num=1),
+        Chunk(
+            text="FastAPI là framework Python cho REST API", source="a.txt", index=100, chunk_num=1
+        ),
         Chunk(text="Neural network có nhiều lớp ẩn", source="b.txt", index=100, chunk_num=1),
         Chunk(text="Docker giúp đóng gói ứng dụng", source="c.txt", index=0, chunk_num=0),
     ]
@@ -38,6 +41,7 @@ def populated_store(store: SimpleVectorStore, chunks: list[Chunk]) -> SimpleVect
 
 
 # ── cosine_similarity ─────────────────────────────────────────────────────────
+
 
 def test_cosine_same_vector():
     v = [1.0, 0.0, 0.0]
@@ -56,6 +60,7 @@ def test_cosine_zero_vector():
 
 def test_cosine_range():
     import random
+
     random.seed(42)
     a = [random.random() for _ in range(16)]
     b = [random.random() for _ in range(16)]
@@ -64,6 +69,7 @@ def test_cosine_range():
 
 
 # ── SimpleVectorStore.add ─────────────────────────────────────────────────────
+
 
 def test_add_increases_size(store: SimpleVectorStore, chunks: list[Chunk]):
     store.add(chunks)
@@ -86,6 +92,7 @@ def test_vectors_same_length_as_chunks(populated_store: SimpleVectorStore):
 
 
 # ── SimpleVectorStore.search ──────────────────────────────────────────────────
+
 
 def test_search_returns_list(populated_store: SimpleVectorStore):
     results = populated_store.search("Python", k=3)
@@ -121,6 +128,7 @@ def test_search_k_larger_than_store(populated_store: SimpleVectorStore):
 
 # ── Save / Load ───────────────────────────────────────────────────────────────
 
+
 def test_save_creates_file(populated_store: SimpleVectorStore, tmp_path: Path):
     save_path = tmp_path / "index.json"
     populated_store.save(save_path)
@@ -129,6 +137,7 @@ def test_save_creates_file(populated_store: SimpleVectorStore, tmp_path: Path):
 
 def test_save_is_valid_json(populated_store: SimpleVectorStore, tmp_path: Path):
     import json
+
     save_path = tmp_path / "index.json"
     populated_store.save(save_path)
     with open(save_path, encoding="utf-8") as f:

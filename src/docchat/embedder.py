@@ -5,8 +5,10 @@ from collections.abc import Callable
 
 # ── Decorators ────────────────────────────────────────────────────────────────
 
+
 def retry(max_attempts: int = 3, delay: float = 1.0):
     """Retry với exponential backoff — dùng cho API calls."""
+
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -16,14 +18,17 @@ def retry(max_attempts: int = 3, delay: float = 1.0):
                 except Exception as e:
                     if attempt == max_attempts - 1:
                         raise
-                    wait = delay * (2 ** attempt)
+                    wait = delay * (2**attempt)
                     print(f"  [retry] attempt {attempt + 1} failed: {e} — wait {wait:.1f}s")
                     time.sleep(wait)
+
         return wrapper
+
     return decorator
 
 
 # ── Base class ────────────────────────────────────────────────────────────────
+
 
 class BaseEmbedder(ABC):
     """Interface chung cho mọi embedding model."""
@@ -50,6 +55,7 @@ class BaseEmbedder(ABC):
 
 
 # ── Implementations ───────────────────────────────────────────────────────────
+
 
 class OpenAIEmbedder(BaseEmbedder):
     """Dùng OpenAI text-embedding API."""
@@ -102,6 +108,7 @@ class LocalEmbedder(BaseEmbedder):
 
 # ── Factory ───────────────────────────────────────────────────────────────────
 
+
 class EmbedderFactory:
     """Tạo embedder từ tên provider — không hardcode trong code chính."""
 
@@ -110,9 +117,11 @@ class EmbedderFactory:
     @classmethod
     def register(cls, name: str):
         """Decorator để đăng ký provider mới."""
+
         def decorator(klass: type) -> type:
             cls._registry[name] = klass
             return klass
+
         return decorator
 
     @classmethod

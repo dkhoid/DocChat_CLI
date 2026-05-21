@@ -6,6 +6,7 @@ from docchat.loader import Document, load_directory, load_file
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def tmp_txt(tmp_path: Path) -> Path:
     """Tạo file .txt tạm để test."""
@@ -25,6 +26,7 @@ def tmp_dir(tmp_path: Path) -> Path:
 
 
 # ── load_file ────────────────────────────────────────────────────────────────
+
 
 def test_load_file_returns_document(tmp_txt: Path):
     doc = load_file(tmp_txt)
@@ -61,6 +63,7 @@ def test_load_file_empty_raises(tmp_path: Path):
 
 
 # ── load_directory ───────────────────────────────────────────────────────────
+
 
 def test_load_directory_returns_list(tmp_dir: Path):
     docs = load_directory(tmp_dir)

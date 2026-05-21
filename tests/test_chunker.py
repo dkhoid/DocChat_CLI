@@ -5,6 +5,7 @@ from docchat.loader import Document
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
+
 @pytest.fixture
 def short_doc() -> Document:
     return Document(content="Hello world", source="test.txt")
@@ -23,6 +24,7 @@ def multi_docs(long_doc: Document) -> list[Document]:
 
 
 # ── chunk_document ────────────────────────────────────────────────────────────
+
 
 def test_chunk_returns_chunks(long_doc: Document):
     chunks = list(chunk_document(long_doc))
@@ -79,12 +81,16 @@ def test_chunk_overlap_too_large(long_doc: Document):
 
 # ── parametrize: nhiều cấu hình ──────────────────────────────────────────────
 
-@pytest.mark.parametrize("size,overlap", [
-    (256, 0),
-    (256, 32),
-    (512, 64),
-    (128, 16),
-])
+
+@pytest.mark.parametrize(
+    "size,overlap",
+    [
+        (256, 0),
+        (256, 32),
+        (512, 64),
+        (128, 16),
+    ],
+)
 def test_chunk_parametrize(long_doc: Document, size: int, overlap: int):
     chunks = list(chunk_document(long_doc, chunk_size=size, overlap=overlap))
     assert len(chunks) > 0
@@ -94,8 +100,10 @@ def test_chunk_parametrize(long_doc: Document, size: int, overlap: int):
 
 # ── chunk_documents ───────────────────────────────────────────────────────────
 
+
 def test_chunk_documents_is_generator(multi_docs):
     import types
+
     result = chunk_documents(multi_docs)
     assert isinstance(result, types.GeneratorType)
 

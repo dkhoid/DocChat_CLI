@@ -14,8 +14,8 @@ from pathlib import Path
 
 import yaml
 
-# Thư mục mặc định chứa template
-_DEFAULT_PROMPT_DIR = Path(__file__).parent.parent.parent / "prompts"
+# Thư mục mặc định chứa template (nằm trong package: src/docchat/prompts/)
+_DEFAULT_PROMPT_DIR = Path(__file__).parent / "prompts"
 
 
 class PromptManager:

@@ -19,9 +19,11 @@ try:
 except ImportError:  # pragma: no cover
     anthropic = None
 
+from docchat.logging import get_logger
+from docchat.observability import create_generation, create_trace, end_generation
 from docchat.store import BaseStore
 
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ── Pricing table (USD per 1M tokens) ────────────────────────────────────────
@@ -161,7 +163,7 @@ class LLMSession:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
-        print(f"\n[session] {self.stats.report()}")
+        logger.info("session_closed", stats=self.stats.report())
         self._client = None
         self._anthropic_client = None
         return False
@@ -388,9 +390,38 @@ class LLMSession:
         t_start = time.perf_counter()
         self.stats.call_count += 1
 
+        trace = create_trace(name="llm_complete", input_data={"query": query, "k": k})
+        generation = create_generation(
+            trace=trace,
+            name="chat_completion",
+            model=self.config.model,
+            input_messages=messages,
+            model_parameters={
+                "temperature": self.config.temperature,
+                "max_tokens": self.config.max_output_tokens,
+            },
+        )
+
         try:
             response = self._complete_sync(messages)
-            self.stats.total_time += time.perf_counter() - t_start
+            latency = time.perf_counter() - t_start
+            self.stats.total_time += latency
+
+            end_generation(
+                generation,
+                output=response,
+                usage={
+                    "input": self.stats.total_input_tokens,
+                    "output": self.stats.total_output_tokens,
+                },
+            )
+            logger.info(
+                "llm_complete",
+                model=self.config.model,
+                latency_s=round(latency, 3),
+                input_tokens=self.stats.total_input_tokens,
+                output_tokens=self.stats.total_output_tokens,
+            )
 
             if use_history:
                 self.add_to_history("user", query)
@@ -400,6 +431,7 @@ class LLMSession:
 
         except Exception as e:
             self.stats.errors.append(str(e))
+            end_generation(generation, output=str(e), level="ERROR")
             raise
 
     @_llm_retry

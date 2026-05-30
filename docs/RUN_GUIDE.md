@@ -79,3 +79,31 @@ Gửi `POST /ask` với body:
 ```
 
 > **Lưu ý:** Nếu bạn dùng OpenAI hoặc Anthropic, hãy chắc chắn đã điền API key vào file `.env` (ví dụ: `OPENAI_API_KEY=sk-...`).
+
+---
+
+## Monitoring & Observability (Phase 4)
+
+DocChat sử dụng **structlog** (JSON logs) và **Langfuse** (LLM observability) để theo dõi hiệu suất hệ thống.
+
+### Structured Logging
+
+- **Development**: Log hiển thị dạng màu sắc dễ đọc trên terminal.
+- **Production**: Log tự động chuyển sang JSON khi set `DOCCHAT_ENV=production`.
+
+### Langfuse (LLM Tracking)
+
+Langfuse giúp bạn theo dõi từng lần gọi LLM: prompt, response, token usage, cost, latency.
+
+**Cách cài đặt:**
+1. Đăng ký miễn phí tại [cloud.langfuse.com](https://cloud.langfuse.com)
+2. Tạo project mới, lấy `Public Key` và `Secret Key`
+3. Thêm vào file `.env`:
+```bash
+LANGFUSE_PUBLIC_KEY=pk-lf-your-public-key
+LANGFUSE_SECRET_KEY=sk-lf-your-secret-key
+LANGFUSE_HOST=https://cloud.langfuse.com
+```
+4. Khởi động lại server — mọi LLM call sẽ tự động được ghi lại trên dashboard Langfuse.
+
+> **Lưu ý:** Langfuse là tùy chọn (optional). Nếu không cấu hình các biến trên, hệ thống sẽ hoạt động bình thường mà không ghi trace.

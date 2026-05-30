@@ -7,13 +7,15 @@ to expose DocChat capabilities via HTTP endpoints.
 import asyncio
 import os
 import shutil
+import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
+import structlog
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import FastAPI, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
@@ -22,7 +24,11 @@ from docchat.chunker import chunk_documents
 from docchat.embedder import BaseEmbedder, EmbedderFactory
 from docchat.llm import LLMConfig, LLMSession
 from docchat.loader import SUPPORTED_EXTENSIONS, load_directory
+from docchat.logging import get_logger
+from docchat.observability import flush as langfuse_flush
 from docchat.store import ChromaVectorStore
+
+logger = get_logger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -69,10 +75,13 @@ async def lifespan(app: FastAPI):
     load_dotenv()
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     _get_store()
+    logger.info("app_started", data_dir=str(DATA_DIR))
     yield
     for session in _chat_sessions.values():
         session.__exit__(None, None, None)
     _chat_sessions.clear()
+    langfuse_flush()
+    logger.info("app_shutdown")
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -91,6 +100,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log every API request with method, path, status, and latency."""
+    request_id = str(uuid.uuid4())[:8]
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id=request_id)
+
+    t_start = time.perf_counter()
+    response = await call_next(request)
+    latency_ms = round((time.perf_counter() - t_start) * 1000, 1)
+
+    logger.info(
+        "http_request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        latency_ms=latency_ms,
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────

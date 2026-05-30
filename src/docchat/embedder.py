@@ -3,6 +3,10 @@ import time
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 
+from docchat.logging import get_logger
+
+logger = get_logger(__name__)
+
 # ── Decorators ────────────────────────────────────────────────────────────────
 
 
@@ -19,7 +23,9 @@ def retry(max_attempts: int = 3, delay: float = 1.0):
                     if attempt == max_attempts - 1:
                         raise
                     wait = delay * (2**attempt)
-                    print(f"  [retry] attempt {attempt + 1} failed: {e} — wait {wait:.1f}s")
+                    logger.warning(
+                        "embedder_retry", attempt=attempt + 1, error=str(e), wait_s=round(wait, 1)
+                    )
                     time.sleep(wait)
 
         return wrapper

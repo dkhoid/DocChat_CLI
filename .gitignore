@@ -16,6 +16,7 @@ dist/
 *.egg
 *.egg-info/
 src/*.egg-info/
+src/**/*.egg-info/
 
 # Data & Models & Logs
 index.pkl
@@ -39,3 +40,4 @@ test_data.json
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
+.vscode/

@@ -1,6 +1,10 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from docchat.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class Document:
@@ -49,6 +53,6 @@ def load_directory(directory: str | Path) -> list[Document]:
 
     if errors:
         for err in errors:
-            print(f"  [skip] {err}")
+            logger.warning("file_skipped", reason=err)
 
     return docs

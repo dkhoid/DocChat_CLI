@@ -8,6 +8,9 @@ import numpy as np
 
 from docchat.chunker import Chunk
 from docchat.embedder import BaseEmbedder
+from docchat.logging import get_logger
+
+logger = get_logger(__name__)
 
 # ── Math helpers ──────────────────────────────────────────────────────────────
 
@@ -113,7 +116,7 @@ class SimpleVectorStore(BaseStore):
         }
         with open(save_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False)
-        print(f"Index saved: {len(self.chunks)} chunks → {save_path}")
+        logger.info("index_saved", chunks=len(self.chunks), path=str(save_path))
 
     def load(self, path: str | Path) -> None:
         load_path = Path(path)
@@ -276,7 +279,7 @@ class ChromaVectorStore(BaseStore):
                     sim_score = max(0.0, 1.0 - (dist / 2.0))
                     dense_chunks.append(SearchResult(chunk=c, score=sim_score))
         except Exception as e:
-            print(f"Lỗi Dense Search: {e}")
+            logger.error("dense_search_failed", error=str(e))
 
         # 2. 🔍 Sparse Search (BM25 - Keyword Matching theo ngữ pháp tiếng Việt)
         sparse_chunks = []
@@ -355,7 +358,7 @@ class ChromaVectorStore(BaseStore):
 
         all_chunks = self._get_all_chunks()
         self._init_bm25(all_chunks)
-        print(f"Chroma Index loaded: {len(all_chunks)} chunks ← {db_path}")
+        logger.info("chroma_index_loaded", chunks=len(all_chunks), path=db_path)
 
     def clear(self) -> None:
         """Làm sạch toàn bộ cơ sở dữ liệu trên HDD."""

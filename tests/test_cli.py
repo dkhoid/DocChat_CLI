@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from docchat.cli import cmd_ask, cmd_index, cmd_info, main
+from docchat.cli import cmd_ask, cmd_chat, cmd_index, cmd_info, main
 from tests.test_embedder import FakeEmbedder
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -215,3 +215,150 @@ def test_ask_various_queries(populated_index: Path, query: str):
             code = main(["ask", "--data-dir", str(populated_index), query])
 
     assert code == 0
+
+
+# ── cmd_chat ──────────────────────────────────────────────────────────────────
+
+
+def _make_stream_mock():
+    """Create an OpenAI streaming mock that yields one token then stops."""
+    mock_client = MagicMock()
+    token_chunk = MagicMock()
+    token_chunk.choices = [MagicMock()]
+    token_chunk.choices[0].delta.content = "token"
+    token_chunk.usage = None
+
+    last_chunk = MagicMock()
+    last_chunk.choices = []
+    last_chunk.usage.prompt_tokens = 5
+    last_chunk.usage.completion_tokens = 2
+
+    mock_client.chat.completions.create.return_value = iter([token_chunk, last_chunk])
+    return mock_client
+
+
+def test_chat_no_index_returns_1(tmp_path):
+    code = cmd_chat(data_dir=tmp_path / "nonexistent")
+    assert code == 1
+
+
+def test_chat_exit_command(populated_index):
+    """Typing /exit should break the loop and return 0."""
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", return_value="/exit"):
+            code = cmd_chat(data_dir=populated_index)
+    assert code == 0
+
+
+def test_chat_eof_exits_cleanly(populated_index):
+    """EOFError (piped input exhausted) should exit gracefully."""
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", side_effect=EOFError):
+            code = cmd_chat(data_dir=populated_index)
+    assert code == 0
+
+
+def test_chat_keyboard_interrupt_exits_cleanly(populated_index):
+    """Ctrl-C should exit gracefully."""
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", side_effect=KeyboardInterrupt):
+            code = cmd_chat(data_dir=populated_index)
+    assert code == 0
+
+
+def test_chat_clear_command_resets_history(populated_index, capsys):
+    """Typing /clear should call session.clear_history() and reset turn counter."""
+    call_sequence = iter(["/clear", "/exit"])
+    mock_session = MagicMock()
+    mock_session.__enter__ = MagicMock(return_value=mock_session)
+    mock_session.__exit__ = MagicMock(return_value=False)
+
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", side_effect=call_sequence):
+            with patch("docchat.cli.LLMSession", return_value=mock_session):
+                code = cmd_chat(data_dir=populated_index)
+
+    mock_session.clear_history.assert_called_once()
+    assert code == 0
+
+
+def test_chat_stats_command_prints_report(populated_index, capsys):
+    """Typing /stats should print session.stats.report()."""
+    call_sequence = iter(["/stats", "/exit"])
+    mock_session = MagicMock()
+    mock_session.__enter__ = MagicMock(return_value=mock_session)
+    mock_session.__exit__ = MagicMock(return_value=False)
+    mock_session.stats.report.return_value = "tokens: 42"
+
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", side_effect=call_sequence):
+            with patch("docchat.cli.LLMSession", return_value=mock_session):
+                code = cmd_chat(data_dir=populated_index)
+
+    out = capsys.readouterr().out
+    assert "tokens: 42" in out
+    assert code == 0
+
+
+def test_chat_empty_input_is_skipped(populated_index):
+    """Blank input should be skipped without calling the LLM."""
+    call_sequence = iter(["", "/exit"])
+
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", side_effect=call_sequence):
+            with patch("docchat.cli.asyncio.run") as mock_run:
+                code = cmd_chat(data_dir=populated_index)
+
+    mock_run.assert_not_called()
+    assert code == 0
+
+
+def test_chat_llm_exception_continues_loop(populated_index, capsys):
+    """An LLM error mid-turn should print an error but keep the loop alive."""
+    call_sequence = iter(["What is Python?", "/exit"])
+
+    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("builtins.input", side_effect=call_sequence):
+            with patch("docchat.cli.asyncio.run", side_effect=RuntimeError("API error")):
+                code = cmd_chat(data_dir=populated_index)
+
+    err = capsys.readouterr().err
+    assert "API error" in err
+    assert code == 0
+
+
+# ── main() chat routing ────────────────────────────────────────────────────────
+
+
+def test_main_chat_command_routes_to_cmd_chat(populated_index):
+    """main(['chat', ...]) must call cmd_chat with correct LLMConfig."""
+    with patch("docchat.cli.cmd_chat", return_value=0) as mock_chat:
+        code = main(
+            [
+                "chat",
+                "--data-dir", str(populated_index),
+                "--provider", "anthropic",
+                "--model", "claude-3-haiku-20240307",
+                "--max-output-tokens", "128",
+                "--max-input-tokens", "2048",
+                "--temperature", "0.3",
+                "--min-relevance-score", "0.5",
+            ]
+        )
+
+    assert code == 0
+    mock_chat.assert_called_once()
+    cfg = mock_chat.call_args.kwargs["config"]
+    assert cfg.provider == "anthropic"
+    assert cfg.model == "claude-3-haiku-20240307"
+    assert cfg.max_output_tokens == 128
+    assert cfg.max_input_tokens == 2048
+    assert abs(cfg.temperature - 0.3) < 1e-9
+    assert abs(cfg.min_relevance_score - 0.5) < 1e-9
+
+
+def test_main_chat_passes_top_k(populated_index):
+    with patch("docchat.cli.cmd_chat", return_value=0) as mock_chat:
+        main(["chat", "--data-dir", str(populated_index), "--top-k", "10"])
+
+    assert mock_chat.call_args.kwargs["k"] == 10

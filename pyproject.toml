@@ -1,6 +1,6 @@
 [project]
 name = "docchat"
-version = "0.1.0"
+version = "0.2.0"
 description = "Hỏi đáp tài liệu từ terminal"
 requires-python = ">=3.11"
 dependencies = [
@@ -90,6 +90,14 @@ target-version = "py313"
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 ignore = []
+
+[tool.pyright]
+exclude = [
+    "**/.venv",
+    "**/.venv_linux",
+    "**/.venv_win",
+    "**/__pycache__"
+]
 
 [tool.coverage.report]
 exclude_lines = [

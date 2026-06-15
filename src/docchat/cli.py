@@ -245,6 +245,11 @@ def cmd_info(data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local"
 
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Trả về exit code."""
+    import warnings
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=UserWarning)
+
     import argparse
 
     # Nạp file .env trước khi chạy bất kỳ lệnh nào

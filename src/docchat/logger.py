@@ -4,7 +4,7 @@ Provides JSON-formatted logs for production (Railway/cloud) and
 human-readable colored output for local development.
 
 Usage:
-    from docchat.logging import get_logger
+    from docchat.logger import get_logger
     logger = get_logger(__name__)
     logger.info("chunks_retrieved", count=5, latency_ms=12.3)
 """

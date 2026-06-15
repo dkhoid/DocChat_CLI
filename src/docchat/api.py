@@ -24,7 +24,7 @@ from docchat.chunker import chunk_documents
 from docchat.embedder import BaseEmbedder, EmbedderFactory
 from docchat.llm import LLMConfig, LLMSession
 from docchat.loader import SUPPORTED_EXTENSIONS, load_directory
-from docchat.logging import get_logger
+from docchat.logger import get_logger
 from docchat.observability import flush as langfuse_flush
 from docchat.store import ChromaVectorStore
 

@@ -4,6 +4,11 @@ import os
 
 
 def main() -> None:
+    import warnings
+    warnings.filterwarnings("ignore", category=SyntaxWarning)
+    warnings.filterwarnings("ignore", category=DeprecationWarning)
+    warnings.filterwarnings("ignore", category=UserWarning)
+
     import uvicorn
 
     host = os.environ.get("DOCCHAT_HOST", "0.0.0.0")

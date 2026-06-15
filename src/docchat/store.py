@@ -8,7 +8,7 @@ import numpy as np
 
 from docchat.chunker import Chunk
 from docchat.embedder import BaseEmbedder
-from docchat.logging import get_logger
+from docchat.logger import get_logger
 
 logger = get_logger(__name__)
 

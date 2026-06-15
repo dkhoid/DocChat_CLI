@@ -19,7 +19,7 @@ try:
 except ImportError:  # pragma: no cover
     anthropic = None
 
-from docchat.logging import get_logger
+from docchat.logger import get_logger
 from docchat.observability import create_generation, create_trace, end_generation
 from docchat.store import BaseStore
 

@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from docchat.logging import get_logger
+from docchat.logger import get_logger
 
 logger = get_logger(__name__)
 

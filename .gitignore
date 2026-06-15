@@ -36,8 +36,11 @@ my_docs/
 test_data.json
 .agent/
 
-.venv_windows/
 .mypy_cache/
 .pytest_cache/
 .ruff_cache/
 .vscode/
+
+.venv
+.venv_linux
+.venv_win

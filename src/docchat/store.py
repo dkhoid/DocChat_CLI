@@ -156,9 +156,13 @@ class ChromaVectorStore(BaseStore):
         self._bm25 = None
         self._bm25_chunks: list[Chunk] = []
         self._reranker_model = None
+        self._chunks_cache: list[Chunk] | None = None
         import threading
 
         self._reranker_lock = threading.Lock()
+
+    def _invalidate_cache(self) -> None:
+        self._chunks_cache = None
 
     def _init_bm25(self, chunks: list[Chunk]):
         if not chunks:
@@ -177,6 +181,9 @@ class ChromaVectorStore(BaseStore):
         self._bm25_chunks = chunks
 
     def _get_all_chunks(self) -> list[Chunk]:
+        if self._chunks_cache is not None:
+            return self._chunks_cache
+
         if self._collection is None:
             return []
         try:
@@ -197,6 +204,8 @@ class ChromaVectorStore(BaseStore):
                 id=id_,
             )
             chunks.append(c)
+
+        self._chunks_cache = chunks
         return chunks
 
     @property
@@ -245,6 +254,7 @@ class ChromaVectorStore(BaseStore):
         # BM25 incremental: extend in-memory list thay vì round-trip ChromaDB
         self._bm25_chunks.extend(chunks)
         self._init_bm25(self._bm25_chunks)
+        self._invalidate_cache()
 
     def search(self, query: str, k: int = 5) -> list[SearchResult]:
         if self._collection is None:
@@ -355,6 +365,7 @@ class ChromaVectorStore(BaseStore):
         db_path = str(Path(data_dir) / "chroma_db")
         self._client = chromadb.PersistentClient(path=db_path)
         self._collection = self._client.get_or_create_collection(name=self.collection_name)
+        self._invalidate_cache()  # flush stale cache trước khi load mới
 
         all_chunks = self._get_all_chunks()
         self._init_bm25(all_chunks)
@@ -369,6 +380,7 @@ class ChromaVectorStore(BaseStore):
                 pass
             self._collection = self._client.get_or_create_collection(name=self.collection_name)
         self._init_bm25([])
+        self._invalidate_cache()
 
     @property
     def size(self) -> int:

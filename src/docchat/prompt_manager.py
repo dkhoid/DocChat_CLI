@@ -161,10 +161,17 @@ class PromptManager:
         if result_parts:
             return "\n\n".join(result_parts) + truncation_marker
 
-        # Nếu không cắt được theo paragraph, cắt thô theo ký tự
-        # Ước tính: 1 token ≈ 4 chars
-        approx_chars = budget * 4
-        return context[:approx_chars] + truncation_marker
+        # Fallback: binary search trên character boundary — chính xác hơn heuristic 1 token≈4 chars
+        # (tiếng Việt có dấu thường chỉ ~2-3 chars/token)
+        marker_tokens = self.count_tokens(truncation_marker, model)
+        lo, hi = 0, len(context)
+        while lo < hi - 1:
+            mid = (lo + hi) // 2
+            if self.count_tokens(context[:mid], model) + marker_tokens <= budget:
+                lo = mid
+            else:
+                hi = mid
+        return context[:lo] + truncation_marker
 
     # ── List available templates ───────────────────────────────────────────────
 

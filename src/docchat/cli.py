@@ -14,8 +14,8 @@ from docchat.store import ChromaVectorStore
 # ── Config ────────────────────────────────────────────────────────────────────
 
 DEFAULT_DATA_DIR = Path.home() / ".docchat"
-DEFAULT_CHUNK_SIZE = 512
-DEFAULT_CHUNK_OVERLAP = 64
+DEFAULT_CHUNK_SIZE = 512  # number
+DEFAULT_CHUNK_OVERLAP = 64  # reduce loss infomation
 DEFAULT_TOP_K = 5
 
 
@@ -90,6 +90,7 @@ def cmd_ask(
     stream: bool = True,
     config: LLMConfig | None = None,
     embedder_provider: str = "local",
+    verbose: bool = False,
 ) -> int:
     """Hỏi một câu, in câu trả lời ra stdout."""
     if not _index_exists(data_dir):
@@ -105,17 +106,19 @@ def cmd_ask(
 
     config = config or LLMConfig()
 
-    # In ra log debug
-    print("\n[Debug] Retrieved Chunks:")
-    results = store.search(query, k=k)
-    filtered = [r for r in results if r.score >= config.min_relevance_score]
-    if not filtered:
-        print("  (Không có chunk nào đạt min_relevance_score)")
-    for i, r in enumerate(filtered, 1):
-        preview = r.chunk.text.replace("\n", " ")[:70]
-        print(f"  {i}. [{Path(r.chunk.source).name}] (score: {r.score:.3f}) - {preview}...")
-
-    print()  # dòng trống trước câu trả lời
+    if verbose:
+        print("\n[Debug] Retrieved Chunks:", file=sys.stderr)
+        results = store.search(query, k=k)
+        filtered = [r for r in results if r.score >= config.min_relevance_score]
+        if not filtered:
+            print("  (Không có chunk nào đạt min_relevance_score)", file=sys.stderr)
+        for i, r in enumerate(filtered, 1):
+            preview = r.chunk.text.replace("\n", " ")[:70]
+            print(
+                f"  {i}. [{Path(r.chunk.source).name}] (score: {r.score:.3f}) - {preview}...",
+                file=sys.stderr,
+            )
+        print(file=sys.stderr)
 
     with LLMSession(config) as session:
         if stream:
@@ -144,6 +147,7 @@ def cmd_chat(
     k: int = DEFAULT_TOP_K,
     config: LLMConfig | None = None,
     embedder_provider: str = "local",
+    verbose: bool = False,
 ) -> int:
     """
     Interactive multi-turn chat với tài liệu đã index.
@@ -198,15 +202,16 @@ def cmd_chat(
                 continue
 
             # ── Câu hỏi thông thường ──
-            # In ra chunk retrieval
-            results = store.search(query, k=k)
-            filtered = [r for r in results if r.score >= config.min_relevance_score]
-            if filtered:
-                print("  [Debug] Using contexts: ", end="")
-                sources = set(Path(r.chunk.source).name for r in filtered)
-                print(", ".join(sources))
-            else:
-                print("  [Debug] No contexts found matching relevance threshold.")
+            if verbose:
+                results = store.search(query, k=k)
+                filtered = [r for r in results if r.score >= config.min_relevance_score]
+                if filtered:
+                    sources = set(Path(r.chunk.source).name for r in filtered)
+                    print(f"  [Debug] Using contexts: {', '.join(sources)}", file=sys.stderr)
+                else:
+                    print(
+                        "  [Debug] No contexts found matching relevance threshold.", file=sys.stderr
+                    )
 
             print("\nDocChat: ", end="", flush=True)
             try:
@@ -246,6 +251,7 @@ def cmd_info(data_dir: Path = DEFAULT_DATA_DIR, embedder_provider: str = "local"
 def main(argv: list[str] | None = None) -> int:
     """Entry point. Trả về exit code."""
     import warnings
+
     warnings.filterwarnings("ignore", category=SyntaxWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     warnings.filterwarnings("ignore", category=UserWarning)
@@ -284,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
     p_ask.add_argument("--temperature", type=float, default=0.7)
     p_ask.add_argument("--min-relevance-score", type=float, default=0.0)
     p_ask.add_argument("--no-stream", action="store_true")
+    p_ask.add_argument("--verbose", action="store_true", help="Hiện debug chunks ra stderr.")
 
     # docchat chat (multi-turn REPL)
     p_chat = sub.add_parser("chat", help="Chat đa lượt với tài liệu (có memory).")
@@ -298,6 +305,7 @@ def main(argv: list[str] | None = None) -> int:
     p_chat.add_argument("--max-input-tokens", type=int, default=8000)
     p_chat.add_argument("--temperature", type=float, default=0.7)
     p_chat.add_argument("--min-relevance-score", type=float, default=0.0)
+    p_chat.add_argument("--verbose", action="store_true", help="Hiện debug chunks ra stderr.")
 
     # docchat info
     p_info = sub.add_parser("info", help="Xem thông tin index hiện tại.")
@@ -327,6 +335,7 @@ def main(argv: list[str] | None = None) -> int:
             stream=not args.no_stream,
             config=config,
             embedder_provider=args.embedder,
+            verbose=args.verbose,
         )
 
     if args.command == "chat":
@@ -343,6 +352,7 @@ def main(argv: list[str] | None = None) -> int:
             k=args.top_k,
             config=config,
             embedder_provider=args.embedder,
+            verbose=args.verbose,
         )
 
     if args.command == "info":

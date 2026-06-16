@@ -3,9 +3,10 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import openai
+from openai.types.chat import ChatCompletionMessageParam
 from tenacity import (
     before_sleep_log,
     retry,
@@ -198,11 +199,12 @@ class LLMSession:
         context_chunks: list,
         use_history: bool = False,
     ) -> list[dict[str, str]]:
-        """Build messages voi token budget dung cho RAG context."""
+        """Build messages với token budget đúng cho RAG context, tự trim history nếu overflow."""
         from docchat.prompt_manager import get_prompt_manager
 
         pm = get_prompt_manager()
-        history = self.history if use_history else []
+        # Làm việc trên bản copy để không mutate self.history ở đây
+        history = list(self.history) if use_history else []
 
         if not context_chunks:
             messages: list[dict[str, str]] = [
@@ -218,14 +220,25 @@ class LLMSession:
         )
 
         rendered_empty = pm.render("qa_rag", query=query, context="")
-        base_messages: list[dict[str, str]] = [
-            {"role": "system", "content": rendered_empty.get("system", self.config.system_prompt)}
-        ]
-        base_messages.extend(history)
-        base_messages.append({"role": "user", "content": rendered_empty.get("user", query)})
+        system_content = rendered_empty.get("system", self.config.system_prompt)
+        user_content_empty = rendered_empty.get("user", query)
+
+        def _make_base(hist: list) -> list[dict[str, str]]:
+            msgs: list[dict[str, str]] = [{"role": "system", "content": system_content}]
+            msgs.extend(hist)
+            msgs.append({"role": "user", "content": user_content_empty})
+            return msgs
 
         input_budget = max(0, self.config.max_input_tokens - self.config.max_output_tokens)
+        base_messages = _make_base(history)
         base_tokens = pm.count_messages_tokens(base_messages, model=self.config.model)
+
+        # Safety: nếu history quá lớn, drop từng cặp user+assistant cũ nhất cho đến khi vừa
+        while base_tokens > input_budget and len(history) >= 2:
+            history = history[2:]  # drop cặp user+assistant cũ nhất
+            base_messages = _make_base(history)
+            base_tokens = pm.count_messages_tokens(base_messages, model=self.config.model)
+
         context_budget = max(0, input_budget - base_tokens)
         context_text = pm.trim_to_budget(
             context_text, budget=context_budget, model=self.config.model
@@ -233,7 +246,7 @@ class LLMSession:
 
         rendered = pm.render("qa_rag", query=query, context=context_text)
         messages = [
-            {"role": "system", "content": rendered.get("system", self.config.system_prompt)}
+            {"role": "system", "content": rendered.get("system", system_content)}
         ]
         messages.extend(history)
         messages.append({"role": "user", "content": rendered.get("user", query)})
@@ -303,7 +316,7 @@ class LLMSession:
                 self.add_to_history("assistant", "".join(tokens))
 
     @_llm_retry
-    def _create_openai_stream(self, messages):
+    def _create_openai_stream(self, messages: list[ChatCompletionMessageParam]):
         if self._client is None:
             raise RuntimeError("OpenAI client chua duoc khoi tao")
         return self._client.chat.completions.create(
@@ -313,6 +326,7 @@ class LLMSession:
             messages=messages,
             stream=True,
             stream_options={"include_usage": True},
+            user="docchat-cli",
         )
 
     def _stream_sync(self, messages: list[dict[str, str]]):
@@ -442,11 +456,14 @@ class LLMSession:
         if self._client is None:
             raise RuntimeError("OpenAI client chua duoc khoi tao")
 
+        # Cast sang đúng type mà OpenAI SDK yêu cầu
+        typed_messages = cast(list[ChatCompletionMessageParam], messages)
         msg = self._client.chat.completions.create(
             model=self.config.model,
             max_tokens=self.config.max_output_tokens,
             temperature=self.config.temperature,
-            messages=messages,
+            messages=typed_messages,
+            user="docchat-cli",
         )
 
         usage = getattr(msg, "usage", None)
@@ -456,7 +473,13 @@ class LLMSession:
                 usage.prompt_tokens,
                 usage.completion_tokens,
             )
-        return msg.choices[0].message.content or ""
+
+        choice = msg.choices[0].message
+        # Kiểm tra refusal trước khi đọc content (API safety best practice)
+        if choice.refusal:
+            logger.warning("llm_refusal", reason=choice.refusal)
+            return ""
+        return choice.content or ""
 
     def _complete_sync_anthropic(self, messages: list[dict[str, str]]) -> str:
         if self._anthropic_client is None:
@@ -476,6 +499,7 @@ class LLMSession:
             messages=anthropic_messages,
             max_tokens=self.config.max_output_tokens,
             temperature=self.config.temperature,
+            metadata={"user_id": "docchat-cli"},  # required for abuse tracking
         )
 
         usage = getattr(res, "usage", None)

@@ -35,21 +35,21 @@ def chunk_document(
     except ImportError:
         raise ImportError("Cần cài đặt langchain-text-splitters (uv add langchain-text-splitters)")
 
-    # Dùng tiktoken để đếm số token thay vì đếm số ký tự
+    # Dùng tiktoken để đếm token; add_start_index=True để ghi character offset thực vào metadata
     splitter = RecursiveCharacterTextSplitter.from_tiktoken_encoder(
         model_name="gpt-4o",
         chunk_size=chunk_size,
         chunk_overlap=overlap,
         separators=["\n\n", "\n", ".", " ", ""],
+        add_start_index=True,
     )
 
     docs = splitter.create_documents([doc.content])
     for i, d in enumerate(docs):
-        # Metadata chứa mốc nếu có. Mặc định index=0 nếu không tính được mapping ký tự gốc.
         yield Chunk(
             text=d.page_content,
             source=doc.source,
-            index=0,
+            index=d.metadata.get("start_index", 0),
             chunk_num=i,
         )
 

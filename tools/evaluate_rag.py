@@ -9,11 +9,11 @@ from datasets import Dataset
 # Đặt đường dẫn tuyệt đối cho import
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from docchat.embedder import EmbedderFactory
+from docchat.store import ChromaVectorStore
 from dotenv import load_dotenv
 
-from docchat.embedder import EmbedderFactory
 from docchat.llm import LLMConfig, LLMSession
-from docchat.store import ChromaVectorStore
 
 load_dotenv()
 

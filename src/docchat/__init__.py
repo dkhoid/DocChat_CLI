@@ -12,14 +12,14 @@ from docchat.core.prompt_manager import PromptManager, get_prompt_manager
 # ── Embeddings ────────────────────────────────────────────────────────────────
 from docchat.embeddings.embedder import BaseEmbedder, EmbedderFactory
 
-# ── Storage ───────────────────────────────────────────────────────────────────
-from docchat.storage.store import BaseStore, ChromaVectorStore, SearchResult, SimpleVectorStore
+# ── Infrastructure ────────────────────────────────────────────────────────────
+from docchat.infrastructure.logger import get_logger
 
 # ── LLM ───────────────────────────────────────────────────────────────────────
 from docchat.llm.session import LLMConfig, LLMSession, SessionStats, ask
 
-# ── Infrastructure ────────────────────────────────────────────────────────────
-from docchat.infrastructure.logger import get_logger
+# ── Storage ───────────────────────────────────────────────────────────────────
+from docchat.storage.store import BaseStore, ChromaVectorStore, SearchResult, SimpleVectorStore
 
 __all__ = [
     "Chunk",

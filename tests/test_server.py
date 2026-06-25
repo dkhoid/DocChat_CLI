@@ -1,19 +1,20 @@
 """Tests for docchat.server — uvicorn entry point configuration."""
 
 import os
-from unittest.mock import call, patch
-
-import pytest
+from unittest.mock import patch
 
 from docchat.interfaces.server import main
-
 
 # ── main() env-var parsing ────────────────────────────────────────────────────
 
 
 def test_server_main_uses_default_host_and_port():
     """Defaults: host=0.0.0.0, port=8000, reload=False."""
-    env = {k: v for k, v in os.environ.items() if k not in ("DOCCHAT_HOST", "PORT", "DOCCHAT_PORT", "DOCCHAT_RELOAD")}
+    env = {
+        k: v
+        for k, v in os.environ.items()
+        if k not in ("DOCCHAT_HOST", "PORT", "DOCCHAT_PORT", "DOCCHAT_RELOAD")
+    }
     with patch.dict(os.environ, env, clear=True):
         with patch("uvicorn.run") as mock_run:
             main()

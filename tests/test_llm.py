@@ -5,8 +5,8 @@ import openai
 import pytest
 
 from docchat.core.chunker import Chunk
-from docchat.llm.session import LLMConfig, LLMSession, SessionStats, ask
 from docchat.core.prompt_manager import get_prompt_manager
+from docchat.llm.session import LLMConfig, LLMSession, SessionStats, ask
 from docchat.storage.store import SearchResult, SimpleVectorStore
 from tests.test_embedder import FakeEmbedder
 
@@ -123,7 +123,8 @@ def test_session_enters_and_exits():
 def test_session_openai_constructor_failure():
     # Kiểm tra rằng lỗi khởi tạo OpenAI() được propagate đúng.
     with patch(
-        "docchat.llm.session.openai.OpenAI", side_effect=openai.APIConnectionError(request=MagicMock())
+        "docchat.llm.session.openai.OpenAI",
+        side_effect=openai.APIConnectionError(request=MagicMock()),
     ):
         with pytest.raises(openai.APIConnectionError):
             with LLMSession():

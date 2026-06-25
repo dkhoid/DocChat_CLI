@@ -331,7 +331,7 @@ class LLMSession:
 
     def _stream_sync(self, messages: list[dict[str, str]]):
         """Call provider streaming API (sync) va tra ve generator token."""
-        stream = self._create_openai_stream(messages)
+        stream = self._create_openai_stream(cast(list[ChatCompletionMessageParam], messages))
         for chunk in stream:
             if self._shutdown_event.is_set():
                 break
@@ -524,8 +524,8 @@ async def ask(
     config: LLMConfig | None = None,
     k: int = 5,
 ) -> str:
+    tokens: list[str] = []
     with LLMSession(config) as session:
-        tokens: list[str] = []
         async for token in session.stream(query, store, k=k):
             tokens.append(token)
-        return "".join(tokens)
+    return "".join(tokens)

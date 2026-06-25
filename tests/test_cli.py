@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from docchat.interfaces.cli import cmd_ask, cmd_chat, cmd_index, cmd_info, main
+# pyrefly: ignore [missing-import]
 from tests.test_embedder import FakeEmbedder
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────

@@ -21,11 +21,11 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from docchat.core.chunker import chunk_documents
-from docchat.embeddings.embedder import BaseEmbedder, EmbedderFactory
-from docchat.llm.session import LLMConfig, LLMSession
 from docchat.core.loader import SUPPORTED_EXTENSIONS, load_directory
+from docchat.embeddings.embedder import BaseEmbedder, EmbedderFactory
 from docchat.infrastructure.logger import get_logger
 from docchat.infrastructure.observability import flush as langfuse_flush
+from docchat.llm.session import LLMConfig, LLMSession
 from docchat.storage.store import ChromaVectorStore
 
 logger = get_logger(__name__)

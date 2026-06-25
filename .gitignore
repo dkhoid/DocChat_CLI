@@ -44,3 +44,4 @@ test_data.json
 .venv
 .venv_linux
 .venv_win
+data/

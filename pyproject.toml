@@ -10,6 +10,7 @@ dependencies = [
     "langchain-text-splitters>=1.1.1",
     "langfuse>=4.6.1",
     "openai>=1.0.0",
+    "pandas>=3.0.1",
     "python-dotenv>=1.2.2",
     "python-multipart>=0.0.18",
     "pyvi>=0.1.1",

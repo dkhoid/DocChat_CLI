@@ -347,22 +347,22 @@ class ChromaVectorStore(BaseStore):
                 scores[item_id] = scores.get(item_id, 0.0) + 1.0 / (k_rrf + rank + 1)
                 chunk_map[item_id] = item.chunk
 
-        sorted_ids = sorted(scores, key=scores.get, reverse=True)[:k_out]
+        sorted_ids = sorted(scores, key=lambda x: scores[x], reverse=True)[:k_out]
         return [SearchResult(chunk=chunk_map[i], score=scores[i]) for i in sorted_ids]
 
-    def save(self, data_dir: str | Path) -> None:
+    def save(self, path: str | Path) -> None:
         """Kích hoạt Chroma DB trong data_dir/chroma_db. (Chroma Persistence mode tự động save)."""
         import chromadb
 
-        db_path = str(Path(data_dir) / "chroma_db")
+        db_path = str(Path(path) / "chroma_db")
         self._client = chromadb.PersistentClient(path=db_path)
         self._collection = self._client.get_or_create_collection(name=self.collection_name)
 
-    def load(self, data_dir: str | Path) -> None:
+    def load(self, path: str | Path) -> None:
         """Ngàm nạp lại toàn bộ DB lên RAM memory bao gồm BM25."""
         import chromadb
 
-        db_path = str(Path(data_dir) / "chroma_db")
+        db_path = str(Path(path) / "chroma_db")
         self._client = chromadb.PersistentClient(path=db_path)
         self._collection = self._client.get_or_create_collection(name=self.collection_name)
         self._invalidate_cache()  # flush stale cache trước khi load mới

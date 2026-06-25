@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pytest
 
-from docchat.chunker import Chunk
-from docchat.store import SearchResult, SimpleVectorStore, cosine_similarity
+from docchat.core.chunker import Chunk
+from docchat.storage.store import SearchResult, SimpleVectorStore, cosine_similarity
 
 # pyrefly: ignore [missing-import]
 from tests.test_embedder import FakeEmbedder

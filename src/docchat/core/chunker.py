@@ -2,7 +2,7 @@ import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 
-from docchat.loader import Document
+from docchat.core.loader import Document
 
 
 @dataclass

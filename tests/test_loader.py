@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from docchat.loader import Document, load_directory, load_file
+from docchat.core.loader import Document, load_directory, load_file
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 

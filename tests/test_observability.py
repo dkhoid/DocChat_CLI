@@ -5,8 +5,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import docchat.observability as obs_module
-from docchat.observability import (
+import docchat.infrastructure.observability as obs_module
+from docchat.infrastructure.observability import (
     create_generation,
     create_trace,
     end_generation,
@@ -117,7 +117,7 @@ def test_get_langfuse_returns_none_on_import_error():
 
 
 def test_create_trace_returns_none_when_langfuse_disabled():
-    with patch("docchat.observability.get_langfuse", return_value=None):
+    with patch("docchat.infrastructure.observability.get_langfuse", return_value=None):
         result = create_trace(name="test-trace")
     assert result is None
 
@@ -127,7 +127,7 @@ def test_create_trace_returns_trace_object():
     mock_lf = MagicMock()
     mock_lf.trace.return_value = mock_trace
 
-    with patch("docchat.observability.get_langfuse", return_value=mock_lf):
+    with patch("docchat.infrastructure.observability.get_langfuse", return_value=mock_lf):
         result = create_trace(name="ask", input_data={"q": "hello"}, user_id="u1")
 
     assert result is mock_trace
@@ -138,7 +138,7 @@ def test_create_trace_returns_none_on_exception():
     mock_lf = MagicMock()
     mock_lf.trace.side_effect = RuntimeError("network error")
 
-    with patch("docchat.observability.get_langfuse", return_value=mock_lf):
+    with patch("docchat.infrastructure.observability.get_langfuse", return_value=mock_lf):
         result = create_trace(name="ask")
 
     assert result is None
@@ -204,13 +204,13 @@ def test_end_generation_swallows_exception():
 
 
 def test_flush_noop_when_langfuse_disabled():
-    with patch("docchat.observability.get_langfuse", return_value=None):
+    with patch("docchat.infrastructure.observability.get_langfuse", return_value=None):
         flush()  # must not raise
 
 
 def test_flush_calls_lf_flush():
     mock_lf = MagicMock()
-    with patch("docchat.observability.get_langfuse", return_value=mock_lf):
+    with patch("docchat.infrastructure.observability.get_langfuse", return_value=mock_lf):
         flush()
     mock_lf.flush.assert_called_once()
 
@@ -218,5 +218,5 @@ def test_flush_calls_lf_flush():
 def test_flush_swallows_exception():
     mock_lf = MagicMock()
     mock_lf.flush.side_effect = ConnectionError("unreachable")
-    with patch("docchat.observability.get_langfuse", return_value=mock_lf):
+    with patch("docchat.infrastructure.observability.get_langfuse", return_value=mock_lf):
         flush()  # must not raise

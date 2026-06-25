@@ -30,8 +30,8 @@ dev = [
 
 
 [project.scripts]
-docchat = "docchat.cli:main"
-docchat-api = "docchat.server:main"
+docchat = "docchat.interfaces.cli:main"
+docchat-api = "docchat.interfaces.server:main"
 
 [tool.uv]
 package = true

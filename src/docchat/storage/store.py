@@ -6,9 +6,9 @@ from pathlib import Path
 
 import numpy as np
 
-from docchat.chunker import Chunk
-from docchat.embedder import BaseEmbedder
-from docchat.logger import get_logger
+from docchat.core.chunker import Chunk
+from docchat.embeddings.embedder import BaseEmbedder
+from docchat.infrastructure.logger import get_logger
 
 logger = get_logger(__name__)
 

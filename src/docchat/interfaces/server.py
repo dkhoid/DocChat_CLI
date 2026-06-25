@@ -18,7 +18,7 @@ def main() -> None:
     reload = os.environ.get("DOCCHAT_RELOAD", "false").lower() == "true"
 
     uvicorn.run(
-        "docchat.api:app",
+        "docchat.interfaces.api:app",
         host=host,
         port=port,
         reload=reload,

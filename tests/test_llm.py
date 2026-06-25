@@ -4,10 +4,10 @@ from unittest.mock import MagicMock, patch
 import openai
 import pytest
 
-from docchat.chunker import Chunk
-from docchat.llm import LLMConfig, LLMSession, SessionStats, ask
-from docchat.prompt_manager import get_prompt_manager
-from docchat.store import SearchResult, SimpleVectorStore
+from docchat.core.chunker import Chunk
+from docchat.llm.session import LLMConfig, LLMSession, SessionStats, ask
+from docchat.core.prompt_manager import get_prompt_manager
+from docchat.storage.store import SearchResult, SimpleVectorStore
 from tests.test_embedder import FakeEmbedder
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -32,6 +32,7 @@ def make_mock_client(response_text: str = "Đây là câu trả lời"):
     mock_msg = MagicMock()
     mock_msg.choices = [MagicMock()]
     mock_msg.choices[0].message.content = response_text
+    mock_msg.choices[0].message.refusal = None
     mock_msg.usage.prompt_tokens = 100
     mock_msg.usage.completion_tokens = 50
     mock_client.chat.completions.create.return_value = mock_msg
@@ -112,7 +113,7 @@ def test_stats_report_with_errors():
 
 
 def test_session_enters_and_exits():
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
         with LLMSession() as session:
             assert session._client is not None
@@ -122,7 +123,7 @@ def test_session_enters_and_exits():
 def test_session_openai_constructor_failure():
     # Kiểm tra rằng lỗi khởi tạo OpenAI() được propagate đúng.
     with patch(
-        "docchat.llm.openai.OpenAI", side_effect=openai.APIConnectionError(request=MagicMock())
+        "docchat.llm.session.openai.OpenAI", side_effect=openai.APIConnectionError(request=MagicMock())
     ):
         with pytest.raises(openai.APIConnectionError):
             with LLMSession():
@@ -130,7 +131,7 @@ def test_session_openai_constructor_failure():
 
 
 def test_session_stats_reset_each_session():
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
         with LLMSession():
             pass
@@ -181,7 +182,7 @@ def test_complete_returns_string():
     store = make_store("Python là ngôn ngữ lập trình.")
     mock_client = make_mock_client("Câu trả lời đây.")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = mock_client
         with LLMSession() as session:
             result = session.complete("Python là gì?", store)
@@ -194,7 +195,7 @@ def test_complete_updates_stats():
     store = make_store("nội dung")
     mock_client = make_mock_client()
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = mock_client
         with LLMSession() as session:
             session.complete("query", store)
@@ -208,7 +209,7 @@ def test_complete_records_error_on_exception():
     mock_client = MagicMock()
     mock_client.chat.completions.create.side_effect = ConnectionError("network down")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = mock_client
         with LLMSession() as session:
             with pytest.raises(ConnectionError):
@@ -220,7 +221,7 @@ def test_complete_multiple_calls():
     store = make_store("nội dung A", "nội dung B")
     mock_client = make_mock_client()
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = mock_client
         with LLMSession() as session:
             session.complete("câu hỏi 1", store)
@@ -235,7 +236,7 @@ def test_ask_returns_string():
     store = make_store("ti li‡u test")
     mock_client = make_mock_client("kt qu")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = mock_client
 
         # Patch _stream_sync để trả về list token thay vì gọi API thật
@@ -249,7 +250,7 @@ def test_ask_empty_store():
     store = SimpleVectorStore(embedder=FakeEmbedder(dim=4))
     mock_client = make_mock_client("không có thng tin")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = mock_client
         with patch.object(LLMSession, "_stream_sync", return_value=["không ", "có ", "thông tin"]):
             result = asyncio.run(ask("query?", store))
@@ -379,11 +380,12 @@ def test_complete_retries_on_rate_limit():
         mock_msg = MagicMock()
         mock_msg.choices = [MagicMock()]
         mock_msg.choices[0].message.content = "ok"
+        mock_msg.choices[0].message.refusal = None
         mock_msg.usage.prompt_tokens = 10
         mock_msg.usage.completion_tokens = 5
         return mock_msg
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = failing_then_ok
         mock_openai_class.return_value = mock_client
@@ -401,7 +403,7 @@ def test_complete_raises_after_max_retries():
 
     store = make_store("nội dung")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_client = MagicMock()
         mock_client.chat.completions.create.side_effect = openai.RateLimitError(
             message="always rate limited",
@@ -454,7 +456,7 @@ def test_complete_anthropic_provider():
     resp.usage.output_tokens = 7
     mock_anthropic.messages.create.return_value = resp
 
-    with patch("docchat.llm.anthropic.Anthropic", return_value=mock_anthropic):
+    with patch("docchat.llm.session.anthropic.Anthropic", return_value=mock_anthropic):
         cfg = LLMConfig(provider="anthropic", model="claude-3-5-haiku-latest")
         with LLMSession(cfg) as session:
             result = session.complete("query", store)
@@ -472,7 +474,7 @@ async def test_stream_returns_tokens():
     """stream() phải yield từng token."""
     store = make_store("tài liệu test")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
         with LLMSession() as session:
             with patch.object(session, "_stream_sync", return_value=["xin ", "chào"]):
@@ -488,7 +490,7 @@ async def test_stream_empty_store():
     """stream() với store rỗng vẫn hoạt động."""
     empty_store = SimpleVectorStore(embedder=FakeEmbedder(dim=4))
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
         with LLMSession() as session:
             with patch.object(session, "_stream_sync", return_value=["không ", "có"]):
@@ -504,7 +506,7 @@ async def test_stream_updates_stats():
     """stream() phải tăng call_count."""
     store = make_store("nội dung")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
         with LLMSession() as session:
             with patch.object(session, "_stream_sync", return_value=["ok"]):
@@ -518,7 +520,7 @@ async def test_stream_with_history():
     """stream() với use_history=True phải lưu vào history."""
     store = make_store("data")
 
-    with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
         mock_openai_class.return_value = MagicMock()
         with LLMSession() as session:
             with patch.object(session, "_stream_sync", return_value=["trả ", "lời"]):

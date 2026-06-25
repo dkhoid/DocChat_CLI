@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 import pytest
 
-from docchat.prompt_manager import PromptManager, get_prompt_manager
+from docchat.core.prompt_manager import PromptManager, get_prompt_manager
 
 # ── Fixtures ───────────────────────────────────────────────────────────────────
 

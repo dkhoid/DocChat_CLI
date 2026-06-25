@@ -5,7 +5,7 @@ from unittest.mock import call, patch
 
 import pytest
 
-from docchat.server import main
+from docchat.interfaces.server import main
 
 
 # ── main() env-var parsing ────────────────────────────────────────────────────
@@ -92,13 +92,13 @@ def test_server_main_reload_false_for_random_value():
 
 
 def test_server_main_targets_correct_app_string():
-    """uvicorn must receive 'docchat.api:app' as the first positional arg."""
+    """uvicorn must receive 'docchat.interfaces.api:app' as the first positional arg."""
     with patch.dict(os.environ, {}, clear=True):
         with patch("uvicorn.run") as mock_run:
             main()
 
     args, _ = mock_run.call_args
-    assert args[0] == "docchat.api:app"
+    assert args[0] == "docchat.interfaces.api:app"
 
 
 def test_server_main_proxy_headers_enabled():

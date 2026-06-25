@@ -2,7 +2,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from docchat.embedder import (
+from docchat.embeddings.embedder import (
     BaseEmbedder,
     EmbedderFactory,
     OpenAIEmbedder,

@@ -11,8 +11,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
-from docchat.chunker import Chunk
-from docchat.store import ChromaVectorStore
+from docchat.core.chunker import Chunk
+from docchat.storage.store import ChromaVectorStore
 
 # pyrefly: ignore [missing-import]
 from tests.test_embedder import FakeEmbedder
@@ -44,11 +44,11 @@ def fake_store(tmp_path: Path) -> ChromaVectorStore:
 @pytest.fixture
 def client(fake_store: ChromaVectorStore, tmp_path: Path):
     """TestClient with mocked store — no real ChromaDB or embedder needed."""
-    with patch("docchat.api._get_store", return_value=fake_store):
-        with patch("docchat.api._store", fake_store):
-            with patch("docchat.api.DATA_DIR", tmp_path):
-                with patch("docchat.api.UPLOAD_DIR", tmp_path / "uploads"):
-                    from docchat.api import app
+    with patch("docchat.interfaces.api._get_store", return_value=fake_store):
+        with patch("docchat.interfaces.api._store", fake_store):
+            with patch("docchat.interfaces.api.DATA_DIR", tmp_path):
+                with patch("docchat.interfaces.api.UPLOAD_DIR", tmp_path / "uploads"):
+                    from docchat.interfaces.api import app
 
                     with TestClient(app, raise_server_exceptions=True) as c:
                         yield c
@@ -61,11 +61,11 @@ def empty_client(tmp_path: Path):
     empty_store = ChromaVectorStore(embedder=embedder)
     empty_store.save(tmp_path)
 
-    with patch("docchat.api._get_store", return_value=empty_store):
-        with patch("docchat.api._store", empty_store):
-            with patch("docchat.api.DATA_DIR", tmp_path):
-                with patch("docchat.api.UPLOAD_DIR", tmp_path / "uploads"):
-                    from docchat.api import app
+    with patch("docchat.interfaces.api._get_store", return_value=empty_store):
+        with patch("docchat.interfaces.api._store", empty_store):
+            with patch("docchat.interfaces.api.DATA_DIR", tmp_path):
+                with patch("docchat.interfaces.api.UPLOAD_DIR", tmp_path / "uploads"):
+                    from docchat.interfaces.api import app
 
                     with TestClient(app, raise_server_exceptions=True) as c:
                         yield c
@@ -124,7 +124,7 @@ def test_info_empty_index(empty_client: TestClient):
 
 
 def test_index_valid_directory(client: TestClient, docs_dir: Path):
-    with patch("docchat.api.EmbedderFactory.create", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.api.EmbedderFactory.create", return_value=FakeEmbedder(dim=4)):
         resp = client.post("/index", json={"directory": str(docs_dir)})
     assert resp.status_code == 200
     data = resp.json()
@@ -143,7 +143,7 @@ def test_index_empty_directory(client: TestClient, tmp_path: Path):
     empty_dir = tmp_path / "empty_docs"
     empty_dir.mkdir()
     (empty_dir / "data.csv").write_text("a,b,c")
-    with patch("docchat.api.EmbedderFactory.create", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.api.EmbedderFactory.create", return_value=FakeEmbedder(dim=4)):
         resp = client.post("/index", json={"directory": str(empty_dir)})
     assert resp.status_code == 400
     assert "Không tìm thấy file" in resp.json()["detail"]
@@ -192,11 +192,12 @@ def test_ask_returns_answer(client: TestClient):
     mock_msg = MagicMock()
     mock_msg.choices = [MagicMock()]
     mock_msg.choices[0].message.content = "Python rất phổ biến."
+    mock_msg.choices[0].message.refusal = None
     mock_msg.usage.prompt_tokens = 50
     mock_msg.usage.completion_tokens = 10
     mock_client.chat.completions.create.return_value = mock_msg
 
-    with patch("docchat.llm.openai.OpenAI", return_value=mock_client):
+    with patch("docchat.llm.session.openai.OpenAI", return_value=mock_client):
         resp = client.post("/ask", json={"query": "Python là gì?", "stream": False})
 
     assert resp.status_code == 200
@@ -222,11 +223,12 @@ def test_ask_with_custom_params(client: TestClient):
     mock_msg = MagicMock()
     mock_msg.choices = [MagicMock()]
     mock_msg.choices[0].message.content = "Answer"
+    mock_msg.choices[0].message.refusal = None
     mock_msg.usage.prompt_tokens = 20
     mock_msg.usage.completion_tokens = 5
     mock_client.chat.completions.create.return_value = mock_msg
 
-    with patch("docchat.llm.openai.OpenAI", return_value=mock_client):
+    with patch("docchat.llm.session.openai.OpenAI", return_value=mock_client):
         resp = client.post(
             "/ask",
             json={
@@ -255,7 +257,7 @@ def test_ask_stream_returns_sse(client: TestClient):
 
     mock_client.chat.completions.create.return_value = iter([mock_chunk, mock_last])
 
-    with patch("docchat.llm.openai.OpenAI", return_value=mock_client):
+    with patch("docchat.llm.session.openai.OpenAI", return_value=mock_client):
         resp = client.post("/ask", json={"query": "test?", "stream": True})
 
     assert resp.status_code == 200
@@ -272,7 +274,7 @@ def test_ask_stream_returns_sse(client: TestClient):
 
 
 def test_chat_create_returns_session_id(client: TestClient):
-    with patch("docchat.llm.openai.OpenAI", return_value=MagicMock()):
+    with patch("docchat.llm.session.openai.OpenAI", return_value=MagicMock()):
         resp = client.post("/chat/create")
     assert resp.status_code == 200
     data = resp.json()
@@ -291,11 +293,12 @@ def test_chat_message_flow(client: TestClient):
     mock_msg = MagicMock()
     mock_msg.choices = [MagicMock()]
     mock_msg.choices[0].message.content = "Trả lời từ chat"
+    mock_msg.choices[0].message.refusal = None
     mock_msg.usage.prompt_tokens = 30
     mock_msg.usage.completion_tokens = 8
     mock_openai_client.chat.completions.create.return_value = mock_msg
 
-    with patch("docchat.llm.openai.OpenAI", return_value=mock_openai_client):
+    with patch("docchat.llm.session.openai.OpenAI", return_value=mock_openai_client):
         # 1. Create session
         resp = client.post("/chat/create")
         assert resp.status_code == 200

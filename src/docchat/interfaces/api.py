@@ -20,13 +20,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from docchat.chunker import chunk_documents
-from docchat.embedder import BaseEmbedder, EmbedderFactory
-from docchat.llm import LLMConfig, LLMSession
-from docchat.loader import SUPPORTED_EXTENSIONS, load_directory
-from docchat.logger import get_logger
-from docchat.observability import flush as langfuse_flush
-from docchat.store import ChromaVectorStore
+from docchat.core.chunker import chunk_documents
+from docchat.embeddings.embedder import BaseEmbedder, EmbedderFactory
+from docchat.llm.session import LLMConfig, LLMSession
+from docchat.core.loader import SUPPORTED_EXTENSIONS, load_directory
+from docchat.infrastructure.logger import get_logger
+from docchat.infrastructure.observability import flush as langfuse_flush
+from docchat.storage.store import ChromaVectorStore
 
 logger = get_logger(__name__)
 

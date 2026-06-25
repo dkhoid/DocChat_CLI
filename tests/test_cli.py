@@ -3,7 +3,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from docchat.cli import cmd_ask, cmd_chat, cmd_index, cmd_info, main
+from docchat.interfaces.cli import cmd_ask, cmd_chat, cmd_index, cmd_info, main
 from tests.test_embedder import FakeEmbedder
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -25,7 +25,7 @@ def data_dir(tmp_path: Path) -> Path:
 @pytest.fixture
 def populated_index(docs_dir: Path, data_dir: Path) -> Path:
     """Tạo index sẵn để test cmd_ask và cmd_info."""
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         cmd_index(str(docs_dir), data_dir)
     return data_dir
 
@@ -34,13 +34,13 @@ def populated_index(docs_dir: Path, data_dir: Path) -> Path:
 
 
 def test_index_returns_0_on_success(docs_dir: Path, data_dir: Path):
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         code = cmd_index(str(docs_dir), data_dir)
     assert code == 0
 
 
 def test_index_creates_index_file(docs_dir: Path, data_dir: Path):
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         cmd_index(str(docs_dir), data_dir)
     chroma_path = data_dir / "chroma_db"
     assert chroma_path.exists()
@@ -54,7 +54,7 @@ def test_index_invalid_directory(data_dir: Path):
 def test_index_empty_directory(tmp_path: Path, data_dir: Path):
     """Thư mục không có file hỗ trợ → lỗi."""
     (tmp_path / "data.csv").write_text("a,b,c")
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         code = cmd_index(str(tmp_path), data_dir)
     assert code == 1
 
@@ -70,14 +70,14 @@ def test_info_no_index(tmp_path: Path, capsys):
 
 
 def test_info_shows_chunk_count(populated_index: Path, capsys):
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         cmd_info(populated_index)
     out = capsys.readouterr().out
     assert "Chunks:" in out
 
 
 def test_info_shows_file_names(populated_index: Path, capsys):
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         cmd_info(populated_index)
     out = capsys.readouterr().out
     assert "a.txt" in out
@@ -97,12 +97,13 @@ def test_ask_returns_0_on_success(populated_index: Path):
     mock_msg = MagicMock()
     mock_msg.choices = [MagicMock()]
     mock_msg.choices[0].message.content = "Câu trả lời"
+    mock_msg.choices[0].message.refusal = None
     mock_msg.usage.prompt_tokens = 10
     mock_msg.usage.completion_tokens = 5
     mock_client.chat.completions.create.return_value = mock_msg
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
-        with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
             mock_openai_class.return_value = mock_client
             code = cmd_ask("Python là gì?", data_dir=populated_index, stream=False)
 
@@ -114,12 +115,13 @@ def test_ask_no_stream_prints_answer(populated_index: Path, capsys):
     mock_msg = MagicMock()
     mock_msg.choices = [MagicMock()]
     mock_msg.choices[0].message.content = "Đây là câu trả lời"
+    mock_msg.choices[0].message.refusal = None
     mock_msg.usage.prompt_tokens = 10
     mock_msg.usage.completion_tokens = 5
     mock_client.chat.completions.create.return_value = mock_msg
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
-        with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
             mock_openai_class.return_value = mock_client
             main(["ask", "--data-dir", str(populated_index), "--no-stream", "query?"])
 
@@ -128,7 +130,7 @@ def test_ask_no_stream_prints_answer(populated_index: Path, capsys):
 
 
 def test_main_ask_passes_provider_and_model(populated_index: Path):
-    with patch("docchat.cli.cmd_ask", return_value=0) as mock_cmd_ask:
+    with patch("docchat.interfaces.cli.cmd_ask", return_value=0) as mock_cmd_ask:
         code = main(
             [
                 "ask",
@@ -161,13 +163,13 @@ def test_main_ask_passes_provider_and_model(populated_index: Path):
 
 
 def test_main_index_command(docs_dir: Path, data_dir: Path):
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         code = main(["index", str(docs_dir), "--data-dir", str(data_dir)])
     assert code == 0
 
 
 def test_main_info_command(populated_index: Path, capsys):
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         code = main(["info", "--data-dir", str(populated_index)])
     assert code == 0
 
@@ -209,8 +211,8 @@ def test_ask_various_queries(populated_index: Path, query: str):
 
     mock_client.chat.completions.create.return_value = iter([mock_chunk, mock_last_chunk])
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
-        with patch("docchat.llm.openai.OpenAI") as mock_openai_class:
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+        with patch("docchat.llm.session.openai.OpenAI") as mock_openai_class:
             mock_openai_class.return_value = mock_client
             code = main(["ask", "--data-dir", str(populated_index), query])
 
@@ -244,7 +246,7 @@ def test_chat_no_index_returns_1(tmp_path):
 
 def test_chat_exit_command(populated_index):
     """Typing /exit should break the loop and return 0."""
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", return_value="/exit"):
             code = cmd_chat(data_dir=populated_index)
     assert code == 0
@@ -252,7 +254,7 @@ def test_chat_exit_command(populated_index):
 
 def test_chat_eof_exits_cleanly(populated_index):
     """EOFError (piped input exhausted) should exit gracefully."""
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", side_effect=EOFError):
             code = cmd_chat(data_dir=populated_index)
     assert code == 0
@@ -260,7 +262,7 @@ def test_chat_eof_exits_cleanly(populated_index):
 
 def test_chat_keyboard_interrupt_exits_cleanly(populated_index):
     """Ctrl-C should exit gracefully."""
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", side_effect=KeyboardInterrupt):
             code = cmd_chat(data_dir=populated_index)
     assert code == 0
@@ -273,9 +275,9 @@ def test_chat_clear_command_resets_history(populated_index, capsys):
     mock_session.__enter__ = MagicMock(return_value=mock_session)
     mock_session.__exit__ = MagicMock(return_value=False)
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", side_effect=call_sequence):
-            with patch("docchat.cli.LLMSession", return_value=mock_session):
+            with patch("docchat.interfaces.cli.LLMSession", return_value=mock_session):
                 code = cmd_chat(data_dir=populated_index)
 
     mock_session.clear_history.assert_called_once()
@@ -290,9 +292,9 @@ def test_chat_stats_command_prints_report(populated_index, capsys):
     mock_session.__exit__ = MagicMock(return_value=False)
     mock_session.stats.report.return_value = "tokens: 42"
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", side_effect=call_sequence):
-            with patch("docchat.cli.LLMSession", return_value=mock_session):
+            with patch("docchat.interfaces.cli.LLMSession", return_value=mock_session):
                 code = cmd_chat(data_dir=populated_index)
 
     out = capsys.readouterr().out
@@ -304,9 +306,9 @@ def test_chat_empty_input_is_skipped(populated_index):
     """Blank input should be skipped without calling the LLM."""
     call_sequence = iter(["", "/exit"])
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", side_effect=call_sequence):
-            with patch("docchat.cli.asyncio.run") as mock_run:
+            with patch("docchat.interfaces.cli.asyncio.run") as mock_run:
                 code = cmd_chat(data_dir=populated_index)
 
     mock_run.assert_not_called()
@@ -317,9 +319,9 @@ def test_chat_llm_exception_continues_loop(populated_index, capsys):
     """An LLM error mid-turn should print an error but keep the loop alive."""
     call_sequence = iter(["What is Python?", "/exit"])
 
-    with patch("docchat.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
+    with patch("docchat.interfaces.cli.get_embedder", return_value=FakeEmbedder(dim=4)):
         with patch("builtins.input", side_effect=call_sequence):
-            with patch("docchat.cli.asyncio.run", side_effect=RuntimeError("API error")):
+            with patch("docchat.interfaces.cli.asyncio.run", side_effect=RuntimeError("API error")):
                 code = cmd_chat(data_dir=populated_index)
 
     err = capsys.readouterr().err
@@ -332,7 +334,7 @@ def test_chat_llm_exception_continues_loop(populated_index, capsys):
 
 def test_main_chat_command_routes_to_cmd_chat(populated_index):
     """main(['chat', ...]) must call cmd_chat with correct LLMConfig."""
-    with patch("docchat.cli.cmd_chat", return_value=0) as mock_chat:
+    with patch("docchat.interfaces.cli.cmd_chat", return_value=0) as mock_chat:
         code = main(
             [
                 "chat",
@@ -358,7 +360,7 @@ def test_main_chat_command_routes_to_cmd_chat(populated_index):
 
 
 def test_main_chat_passes_top_k(populated_index):
-    with patch("docchat.cli.cmd_chat", return_value=0) as mock_chat:
+    with patch("docchat.interfaces.cli.cmd_chat", return_value=0) as mock_chat:
         main(["chat", "--data-dir", str(populated_index), "--top-k", "10"])
 
     assert mock_chat.call_args.kwargs["k"] == 10

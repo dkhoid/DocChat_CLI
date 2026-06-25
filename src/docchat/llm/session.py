@@ -20,9 +20,9 @@ try:
 except ImportError:  # pragma: no cover
     anthropic = None
 
-from docchat.logger import get_logger
-from docchat.observability import create_generation, create_trace, end_generation
-from docchat.store import BaseStore
+from docchat.infrastructure.logger import get_logger
+from docchat.infrastructure.observability import create_generation, create_trace, end_generation
+from docchat.storage.store import BaseStore
 
 logger = get_logger(__name__)
 
@@ -181,7 +181,7 @@ class LLMSession:
         if len(self.history) > max_messages:
             self.history = self.history[-max_messages:]
 
-        from docchat.prompt_manager import get_prompt_manager
+        from docchat.core.prompt_manager import get_prompt_manager
 
         pm = get_prompt_manager()
         while len(self.history) > 2:
@@ -200,7 +200,7 @@ class LLMSession:
         use_history: bool = False,
     ) -> list[dict[str, str]]:
         """Build messages với token budget đúng cho RAG context, tự trim history nếu overflow."""
-        from docchat.prompt_manager import get_prompt_manager
+        from docchat.core.prompt_manager import get_prompt_manager
 
         pm = get_prompt_manager()
         # Làm việc trên bản copy để không mutate self.history ở đây
